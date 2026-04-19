@@ -1,0 +1,30 @@
+.dash-welcome { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-8); gap: var(--space-4); flex-wrap: wrap; }
+.dash-welcome h1 { margin-bottom: var(--space-1); }
+
+.dash-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); margin-bottom: var(--space-8); }
+.dash-stat-card { padding: var(--space-6); text-align: center; }
+.dash-stat-value { display: block; font-size: 2rem; font-weight: 800; margin-bottom: var(--space-1); }
+.dash-stat-label { font-size: 0.85rem; color: var(--text-secondary); }
+
+.dash-recent-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5); }
+
+.dash-empty { text-align: center; padding: var(--space-10); }
+.dash-empty p { margin-bottom: var(--space-5); }
+
+.dash-attempts-list { display: flex; flex-direction: column; gap: 2px; }
+.dash-attempt-row { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4); border-radius: var(--radius-md); transition: background var(--transition-fast); text-decoration: none; color: inherit; }
+.dash-attempt-row:hover { background: var(--bg-glass); }
+.dash-attempt-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dash-attempt-title { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+.dash-attempt-meta { font-size: 0.8rem; }
+.dash-attempt-score { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+
+.score-badge { padding: var(--space-1) var(--space-3); border-radius: var(--radius-full); font-weight: 700; font-size: 0.9rem; }
+.score-badge.good { background: var(--success-bg); color: var(--success); }
+.score-badge.ok { background: var(--warning-bg); color: var(--warning); }
+.score-badge.low { background: var(--error-bg); color: var(--error); }
+
+@media (max-width: 768px) {
+  .dash-stats { grid-template-columns: repeat(2, 1fr); }
+  .dash-stat-value { font-size: 1.5rem; }
+}

@@ -1,0 +1,58 @@
+.rough-page-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.rough-page-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  width: 90vw;
+  max-width: 1000px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rough-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.rough-page-header h3 {
+  font-size: 1rem;
+}
+
+.rough-page-canvas-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.rough-page-canvas-container canvas {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .rough-page-overlay {
+    padding: 0;
+  }
+
+  .rough-page-modal {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    max-width: none;
+  }
+}

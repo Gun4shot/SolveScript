@@ -1,0 +1,9 @@
+.history-page .history-header { margin-bottom: var(--space-6); }
+.history-filters { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6); flex-wrap: wrap; }
+.filter-tabs { display: flex; gap: var(--space-2); }
+.history-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.history-item { display: flex; align-items: center; justify-content: space-between; text-decoration: none; color: inherit; cursor: pointer; }
+.history-item:hover { border-color: var(--border-color-hover); transform: translateY(-1px); }
+.history-item-main h3 { font-size: 1rem; margin-bottom: var(--space-2); color: var(--text-primary); }
+.history-item-meta { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; font-size: 0.85rem; }
+.history-item-score { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); flex-shrink: 0; }
