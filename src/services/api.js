@@ -56,6 +56,7 @@ export const papersAPI = {
 
 // Attempts API
 export const attemptsAPI = {
+  start: (data) => api.post('/attempts/start', data),
   submit: (data) => api.post('/attempts', data),
   getAll: () => api.get('/attempts'),
   getOne: (id) => api.get(`/attempts/${id}`),

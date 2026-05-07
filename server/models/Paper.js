@@ -45,6 +45,21 @@ const paperSchema = new mongoose.Schema({
     of: String,
     required: true
   },
+  extractedQuestions: [{
+    number: Number,
+    body: String,
+    choices: {
+      type: Map,
+      of: String
+    },
+    page: Number,
+    hasComplexContent: Boolean
+  }],
+  extractionConfidence: {
+    type: String,
+    enum: ['HIGH', 'LOW', 'NONE'],
+    default: 'NONE'
+  },
   totalQuestions: {
     type: Number,
     default: 40

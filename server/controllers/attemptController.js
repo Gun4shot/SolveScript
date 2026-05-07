@@ -1,8 +1,44 @@
 const Attempt = require('../models/Attempt');
 const Paper = require('../models/Paper');
 
+// @desc    Start or resume an attempt
+// @route   POST /api/attempts/start
+exports.startAttempt = async (req, res, next) => {
+  try {
+    const { paperId, mode, timeLimit } = req.body;
+
+    let attempt = await Attempt.findOne({ 
+      userId: req.user._id, 
+      paperId, 
+      isCompleted: false 
+    });
+
+    if (!attempt) {
+      attempt = await Attempt.create({
+        userId: req.user._id,
+        paperId,
+        mode,
+        timeLimit: mode === 'exam' ? timeLimit : 0,
+        startedAt: new Date(),
+        answers: {}
+      });
+    }
+
+    // Calculate remaining time for exam mode
+    let remainingTime = 0;
+    if (attempt.mode === 'exam') {
+      const elapsed = Math.floor((new Date() - attempt.startedAt) / 1000);
+      remainingTime = Math.max(0, attempt.timeLimit - elapsed);
+    }
+
+    res.json({ attempt, remainingTime });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Submit an attempt
-// @route   POST /api/attempts
+// @route   POST /api/attempts/submit
 exports.submitAttempt = async (req, res, next) => {
   try {
     const { paperId, mode, answers, totalTimeTaken, examDuration, annotations, roughPageData } = req.body;
@@ -13,6 +49,7 @@ exports.submitAttempt = async (req, res, next) => {
     }
 
     const correctAnswers = Object.fromEntries(paper.answers);
+    const numQuestions = paper.totalQuestions || Object.keys(correctAnswers).length || 40;
     
     // Process answers and calculate stats
     const processedAnswers = {};
@@ -20,7 +57,7 @@ exports.submitAttempt = async (req, res, next) => {
     let totalWrong = 0;
     let totalSkipped = 0;
 
-    for (let i = 1; i <= 40; i++) {
+    for (let i = 1; i <= numQuestions; i++) {
       const userAnswer = answers[i];
       const correct = correctAnswers[i];
       const isCorrect = userAnswer && correct && userAnswer.toUpperCase() === correct.toUpperCase();
@@ -41,23 +78,25 @@ exports.submitAttempt = async (req, res, next) => {
       };
     }
 
-    const percentage = Math.round((totalCorrect / 40) * 100);
+    const percentage = numQuestions > 0 ? Math.round((totalCorrect / numQuestions) * 100) : 0;
 
-    const attempt = await Attempt.create({
-      userId: req.user._id,
-      paperId,
-      mode,
-      answers: processedAnswers,
-      totalCorrect,
-      totalWrong,
-      totalSkipped,
-      percentage,
-      totalTimeTaken: totalTimeTaken || 0,
-      examDuration: examDuration || 0,
-      annotations: annotations || {},
-      roughPageData: roughPageData || {},
-      completedAt: new Date()
-    });
+    const attempt = await Attempt.findOneAndUpdate(
+      { userId: req.user._id, paperId, isCompleted: false },
+      {
+        answers: processedAnswers,
+        totalCorrect,
+        totalWrong,
+        totalSkipped,
+        percentage,
+        totalTimeTaken: totalTimeTaken || 0,
+        examDuration: examDuration || 0,
+        annotations: annotations || {},
+        roughPageData: roughPageData || {},
+        completedAt: new Date(),
+        isCompleted: true
+      },
+      { new: true, upsert: true }
+    );
 
     res.status(201).json({
       attempt: {

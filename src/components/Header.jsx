@@ -1,81 +1,59 @@
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import './Header.css';
+import { LogOut, CheckCircle, Upload } from 'lucide-react';
 
 export default function Header() {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout, user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const handleLogout = async () => {
-    await logout();
+  const handleLogout = () => {
+    logout();
     navigate('/');
   };
 
-  const isActive = (path) => location.pathname === path;
-
   return (
-    <header className="header">
-      <div className="header-inner container">
-        <Link to="/" className="header-logo">
-          <div className="logo-icon">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <rect x="2" y="2" width="24" height="24" rx="6" stroke="url(#logo-grad)" strokeWidth="2.5"/>
-              <path d="M8 14L12 18L20 10" stroke="url(#logo-grad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <defs>
-                <linearGradient id="logo-grad" x1="2" y1="2" x2="26" y2="26">
-                  <stop stopColor="#6366f1"/>
-                  <stop offset="1" stopColor="#a78bfa"/>
-                </linearGradient>
-              </defs>
-            </svg>
+    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-border">
+      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2 group">
+          <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+            <CheckCircle size={18} className="text-white" />
           </div>
-          <span className="logo-text">
-            <span className="text-gradient">PaperSolve</span>
-          </span>
+          <span className="font-semibold text-lg tracking-tight text-primary">PaperSolve</span>
         </Link>
 
-        <nav className="header-nav hide-mobile">
-          {isAuthenticated && (
+        <nav className="flex items-center gap-6">
+          {isAuthenticated ? (
             <>
-              <Link to="/dashboard" className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`}>
+              <Link to="/dashboard" className="text-sm font-medium text-secondary hover:text-primary transition-colors">
                 Dashboard
               </Link>
-              <Link to="/upload" className={`nav-link ${isActive('/upload') ? 'active' : ''}`}>
-                New Paper
+              <Link to="/history" className="text-sm font-medium text-secondary hover:text-primary transition-colors">
+                My Papers
               </Link>
-              <Link to="/history" className={`nav-link ${isActive('/history') ? 'active' : ''}`}>
-                History
+              <Link to="/upload" className="flex items-center gap-2 text-sm font-medium bg-surface hover:bg-border text-primary px-4 py-2 rounded-lg transition-colors">
+                <Upload size={16} />
+                Solve New
+              </Link>
+              <div className="w-px h-6 bg-border mx-2"></div>
+              <button 
+                onClick={handleLogout}
+                className="flex items-center gap-2 text-sm font-medium text-secondary hover:text-error transition-colors"
+              >
+                <LogOut size={16} />
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/upload" className="text-sm font-medium text-secondary hover:text-primary transition-colors">
+                Try Guest Mode
+              </Link>
+              <Link to="/login" className="text-sm font-medium bg-accent hover:bg-accentHover text-white px-5 py-2 rounded-lg transition-colors shadow-soft">
+                Login
               </Link>
             </>
           )}
         </nav>
-
-        <div className="header-actions">
-          {isAuthenticated ? (
-            <div className="user-menu">
-              <div className="user-avatar">
-                {user?.name?.charAt(0).toUpperCase()}
-              </div>
-              <span className="user-name hide-mobile">{user?.name}</span>
-              <button className="btn btn-ghost btn-sm" onClick={handleLogout}>
-                Logout
-              </button>
-            </div>
-          ) : (
-            <div className="auth-buttons">
-              <Link to="/upload" className="btn btn-ghost btn-sm">
-                Try as Guest
-              </Link>
-              <Link to="/login" className="btn btn-secondary btn-sm">
-                Login
-              </Link>
-              <Link to="/register" className="btn btn-primary btn-sm">
-                Sign Up
-              </Link>
-            </div>
-          )}
-        </div>
       </div>
     </header>
   );

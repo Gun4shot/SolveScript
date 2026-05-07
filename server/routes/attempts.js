@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
 const {
+  startAttempt,
   submitAttempt,
   getAttempts,
   getAttempt,
@@ -9,6 +10,7 @@ const {
   getStats
 } = require('../controllers/attemptController');
 
+router.post('/start', protect, startAttempt);
 router.post('/', protect, submitAttempt);
 router.get('/stats', protect, getStats);
 router.get('/', protect, getAttempts);

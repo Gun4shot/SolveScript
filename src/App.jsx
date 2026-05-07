@@ -1,10 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import Header from './components/Header';
 import HomePage from './pages/HomePage/HomePage';
 import LoginPage from './pages/Auth/LoginPage';
-import RegisterPage from './pages/Auth/RegisterPage';
 import UploadPage from './pages/Upload/UploadPage';
 import SolverPage from './pages/Solver/SolverPage';
 import ResultsPage from './pages/Results/ResultsPage';
@@ -19,6 +18,8 @@ function ProtectedRoute({ children }) {
 
 function AppRoutes() {
   const { loading } = useAuth();
+  const location = useLocation();
+  const isSolverPage = location.pathname.startsWith('/solve/');
   
   if (loading) {
     return (
@@ -31,13 +32,12 @@ function AppRoutes() {
 
   return (
     <>
-      <Header />
+      {!isSolverPage && <Header />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/upload" element={<UploadPage />} />
-        <Route path="/solve/:paperId" element={<SolverPage />} />
+        <Route path="/upload" element={<ProtectedRoute><UploadPage /></ProtectedRoute>} />
+        <Route path="/solve/:paperId" element={<ProtectedRoute><SolverPage /></ProtectedRoute>} />
         <Route path="/results/:attemptId" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />

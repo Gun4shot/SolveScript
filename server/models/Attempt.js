@@ -34,6 +34,9 @@ const attemptSchema = new mongoose.Schema({
   percentage: { type: Number, default: 0 },
   totalTimeTaken: { type: Number, default: 0 },
   examDuration: { type: Number, default: 0 },
+  startedAt: { type: Date, default: Date.now },
+  timeLimit: { type: Number, default: 0 }, // in seconds
+  isCompleted: { type: Boolean, default: false },
   annotations: { type: Object, default: {} },
   roughPageData: { type: Object, default: {} },
   completedAt: { type: Date, default: null }

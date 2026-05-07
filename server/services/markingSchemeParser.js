@@ -1,182 +1,142 @@
-const fs = require('fs');
-const pdfParse = require('pdf-parse');
+const pdf = require('pdf-parse');
 
 /**
- * Marking Scheme Parser
+ * Robust Marking Scheme Parser
  * 
- * Parses Cambridge A-Level MCQ marking scheme PDFs to extract
- * the answer key (40 questions, A-D answers).
+ * Handles the standard CIE/Cambridge marking scheme format:
+ *   1 A 1
+ *   2 B 1
+ *   ...
+ * Where: column 1 = question number, column 2 = answer (A-D), column 3 = marks
  * 
- * Strategy:
- * 1. Primary: pdf-parse for digital/text-based PDFs (95% of cases)
- * 2. Falls back to returning partial results for manual correction
+ * Also handles variations like:
+ *   1. A    1
+ *   1  A
+ *   Q1 A 1
  */
-
-/**
- * Extract answers from a marking scheme PDF
- * @param {string} filePath - Path to the marking scheme PDF
- * @returns {Object} { answers: {1: 'A', 2: 'B', ...}, confidence: 'high'|'medium'|'low', totalFound: number }
- */
-async function parseMarkingScheme(filePath) {
+async function parseMarkingScheme(buffer, questionCount = 40) {
   try {
-    const dataBuffer = fs.readFileSync(filePath);
-    const pdfData = await pdfParse(dataBuffer);
-    const text = pdfData.text;
+    const data = await pdf(buffer);
+    const text = data.text;
+    const pageCount = data.numpages;
 
-    // Try multiple parsing strategies
+    // Determine PDF Type
+    const isDigital = text.length > (100 * pageCount);
+    
     let answers = {};
-    let strategy = '';
+    let confidence = 'LOW';
+    let strategy = isDigital ? 'digital-extraction' : 'ocr-extraction';
 
-    // Strategy 1: Table-style format "1 A  2 B  3 C" or grid layout
-    answers = parseTableFormat(text);
-    if (Object.keys(answers).length >= 30) {
-      strategy = 'table';
-    }
+    // Always attempt text extraction (works for both digital and fallback OCR)
+    answers = extractAnswersFromText(text);
 
-    // Strategy 2: List format "1  A\n2  B\n3  C"
-    if (Object.keys(answers).length < 30) {
-      const listAnswers = parseListFormat(text);
-      if (Object.keys(listAnswers).length > Object.keys(answers).length) {
-        answers = listAnswers;
-        strategy = 'list';
-      }
-    }
-
-    // Strategy 3: Key-style "Question 1: A" or "Q1: A"
-    if (Object.keys(answers).length < 30) {
-      const keyAnswers = parseKeyFormat(text);
-      if (Object.keys(keyAnswers).length > Object.keys(answers).length) {
-        answers = keyAnswers;
-        strategy = 'key';
-      }
-    }
-
-    // Strategy 4: Dense format - look for sequences of A/B/C/D after question numbers
-    if (Object.keys(answers).length < 30) {
-      const denseAnswers = parseDenseFormat(text);
-      if (Object.keys(denseAnswers).length > Object.keys(answers).length) {
-        answers = denseAnswers;
-        strategy = 'dense';
-      }
-    }
-
+    // Confidence Check
     const totalFound = Object.keys(answers).length;
-    let confidence = 'low';
-    if (totalFound >= 38) confidence = 'high';
-    else if (totalFound >= 30) confidence = 'medium';
-
-    // Validate answers are within 1-40 range and A-D values
-    const validatedAnswers = {};
-    for (const [q, a] of Object.entries(answers)) {
-      const qNum = parseInt(q);
-      if (qNum >= 1 && qNum <= 40 && ['A', 'B', 'C', 'D'].includes(a.toUpperCase())) {
-        validatedAnswers[qNum] = a.toUpperCase();
-      }
+    if (totalFound >= 30 && totalFound <= 50) {
+      confidence = 'HIGH';
+    } else if (totalFound >= 20) {
+      confidence = 'HIGH';
+    } else if (totalFound >= 10) {
+      confidence = 'LOW';
     }
 
     return {
-      answers: validatedAnswers,
+      answers,
+      totalFound,
       confidence,
-      totalFound: Object.keys(validatedAnswers).length,
       strategy,
-      rawText: text.substring(0, 2000) // First 2000 chars for debugging
+      isDigital
     };
   } catch (error) {
-    console.error('Parsing error:', error.message);
-    return {
-      answers: {},
-      confidence: 'low',
-      totalFound: 0,
-      strategy: 'failed',
-      error: error.message
-    };
+    console.error('Marking Scheme Parse Error:', error);
+    throw error;
   }
 }
 
-/**
- * Parse table format: "1 A  2 B  3 C  4 D" or tabular with columns
- */
-function parseTableFormat(text) {
-  const answers = {};
-  // Match patterns like "1 A", "12 B", "1  A", etc. across the text
-  const regex = /\b(\d{1,2})\s+([A-Da-d])\b/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const qNum = parseInt(match[1]);
-    const answer = match[2].toUpperCase();
-    if (qNum >= 1 && qNum <= 40 && ['A', 'B', 'C', 'D'].includes(answer)) {
-      // Only set if not already set (first occurrence preferred)
-      if (!answers[qNum]) {
-        answers[qNum] = answer;
-      }
-    }
-  }
-  return answers;
-}
-
-/**
- * Parse list format: one question per line
- * "1  A"
- * "2  B"
- */
-function parseListFormat(text) {
+function extractAnswersFromText(text) {
   const answers = {};
   const lines = text.split('\n');
+  
+  // Primary patterns for marking scheme format, ordered by specificity
+  const linePatterns = [
+    // Format: "1 A 1" or "1  A  1" (number, answer, marks) — most common CIE format
+    /^\s*(\d{1,2})\s+([A-D])\s+\d+\s*$/i,
+    // Format: "1 A" (number, answer, no marks column)
+    /^\s*(\d{1,2})\s+([A-D])\s*$/i,
+    // Format: "1. A 1" or "1) A 1" (with period/paren separator)
+    /^\s*(\d{1,2})\s*[.)]\s*([A-D])(?:\s+\d+)?\s*$/i,
+    // Format: "Q1 A 1" or "Q.1 A 1"
+    /^\s*Q\.?\s*(\d{1,2})\s+([A-D])(?:\s+\d+)?\s*$/i,
+    // Format: "1-A" or "1–A" (dash separated)
+    /^\s*(\d{1,2})\s*[-–]\s*([A-D])(?:\s+\d+)?\s*$/i,
+  ];
+
+  // Pass 1: Line-by-line strict matching (highest accuracy)
   for (const line of lines) {
-    // Match question number, answer, and optional trailing marks (e.g., "1 D 1")
-    const match = line.trim().match(/^(\d{1,2})\s+([A-Da-d])(?:[\s\t]+\d+)?\s*$/);
-    if (match) {
-      const qNum = parseInt(match[1]);
-      const answer = match[2].toUpperCase();
-      if (qNum >= 1 && qNum <= 40) {
-        answers[qNum] = answer;
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    for (const pattern of linePatterns) {
+      const match = trimmed.match(pattern);
+      if (match) {
+        const qNum = parseInt(match[1]);
+        const answer = match[2].toUpperCase();
+        if (qNum >= 1 && qNum <= 100) {
+          answers[qNum] = answer;
+        }
+        break; // Only match one pattern per line
       }
     }
   }
-  return answers;
-}
 
-/**
- * Parse key format: "Question 1: A", "Q.1 A", "Ans 1: A"
- */
-function parseKeyFormat(text) {
-  const answers = {};
-  const regex = /(?:question|q\.?|ans(?:wer)?\.?\s*)\s*(\d{1,2})\s*[:\-\s]\s*([A-Da-d])\b/gi;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const qNum = parseInt(match[1]);
-    const answer = match[2].toUpperCase();
-    if (qNum >= 1 && qNum <= 40) {
-      answers[qNum] = answer;
-    }
-  }
-  return answers;
-}
-
-/**
- * Parse dense format: look for structured answer blocks
- * Often Cambridge MS has "Key" section with compact answers
- */
-function parseDenseFormat(text) {
-  const answers = {};
-  
-  // Look for answer key section markers
-  const keySection = text.match(/(?:key|answer\s*key|correct\s*answer)[s]?\s*[\n:]([\s\S]*?)(?:\n\n|\Z)/i);
-  const searchText = keySection ? keySection[1] : text;
-  
-  // Match any number followed by a single letter A-D
-  const regex = /(\d{1,2})\s*[\.:\-\s]+\s*([A-Da-d])/g;
-  let match;
-  while ((match = regex.exec(searchText)) !== null) {
-    const qNum = parseInt(match[1]);
-    const answer = match[2].toUpperCase();
-    if (qNum >= 1 && qNum <= 40) {
-      if (!answers[qNum]) {
-        answers[qNum] = answer;
+  // Pass 2: If Pass 1 found fewer than 10 answers, try a more relaxed multi-match approach
+  // This handles multi-column layouts where a single line may contain multiple Q-A pairs
+  if (Object.keys(answers).length < 10) {
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      
+      // Match all "N A" or "N A M" pairs on one line (multi-column)
+      const multiMatch = /(\d{1,2})\s+([A-D])(?:\s+\d+)?/gi;
+      let m;
+      while ((m = multiMatch.exec(trimmed)) !== null) {
+        const qNum = parseInt(m[1]);
+        const answer = m[2].toUpperCase();
+        if (qNum >= 1 && qNum <= 100) {
+          // Only set if not already found by strict pass
+          if (!answers[qNum]) {
+            answers[qNum] = answer;
+          }
+        }
       }
     }
   }
+
+  // Pass 3: Validate and filter — remove any entries that are clearly noise
+  // (e.g., question numbers way out of expected sequential range)
+  const sortedKeys = Object.keys(answers).map(Number).sort((a, b) => a - b);
+  if (sortedKeys.length > 5) {
+    // Check if we have a reasonable sequential block (e.g., 1-40)
+    const minQ = sortedKeys[0];
+    const maxQ = sortedKeys[sortedKeys.length - 1];
+    
+    // If the range is way too wide relative to count, filter outliers
+    if (maxQ - minQ > sortedKeys.length * 2) {
+      // Find the densest cluster
+      const filtered = {};
+      for (const key of sortedKeys) {
+        // Keep questions in a reasonable range
+        if (key >= 1 && key <= 50) {
+          filtered[key] = answers[key];
+        }
+      }
+      return filtered;
+    }
+  }
+
   return answers;
 }
 
-module.exports = { parseMarkingScheme };
+module.exports = {
+  parseMarkingScheme
+};
