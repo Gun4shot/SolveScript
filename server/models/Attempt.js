@@ -16,13 +16,28 @@ const attemptSchema = new mongoose.Schema({
   paperId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Paper',
-    required: true
+    required: function uploadedPaperIsRequired() {
+      return !this.libraryPaperId;
+    }
+  },
+  libraryPaperId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PaperLibrary',
+    required: function libraryPaperIsRequired() {
+      return !this.paperId;
+    }
   },
   mode: {
     type: String,
     enum: ['exam', 'casual'],
     required: true
   },
+  status: {
+    type: String,
+    enum: ['draft', 'completed'],
+    default: 'completed'
+  },
+  draft: { type: Object, default: null },
   answers: {
     type: Map,
     of: answerDetailSchema,
@@ -43,5 +58,7 @@ const attemptSchema = new mongoose.Schema({
 
 attemptSchema.index({ userId: 1, createdAt: -1 });
 attemptSchema.index({ paperId: 1 });
+attemptSchema.index({ libraryPaperId: 1 });
+attemptSchema.index({ userId: 1, status: 1, libraryPaperId: 1, updatedAt: -1 });
 
 module.exports = mongoose.model('Attempt', attemptSchema);

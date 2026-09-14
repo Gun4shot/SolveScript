@@ -17,9 +17,21 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: function passwordIsRequired() {
+      return !this.googleId;
+    },
     minlength: 6,
     select: false
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    select: false
+  },
+  needsProfileName: {
+    type: Boolean,
+    default: false
   },
   settings: {
     defaultExamDuration: { type: Number, default: 60 },
@@ -37,6 +49,7 @@ userSchema.pre('save', async function() {
 
 // Compare passwords
 userSchema.methods.comparePassword = async function(candidatePassword) {
+  if (!this.password) return false;
   return await bcrypt.compare(candidatePassword, this.password);
 };
 

@@ -60,9 +60,10 @@ async function parseMarkingScheme(filePath) {
       }
     }
 
+    const discountedQuestions = parseDiscountedQuestions(text);
     const totalFound = Object.keys(answers).length;
     let confidence = 'low';
-    if (totalFound >= 38) confidence = 'high';
+    if (totalFound + discountedQuestions.length >= 38) confidence = 'high';
     else if (totalFound >= 30) confidence = 'medium';
 
     // Validate answers are within 1-40 range and A-D values
@@ -76,6 +77,7 @@ async function parseMarkingScheme(filePath) {
 
     return {
       answers: validatedAnswers,
+      discountedQuestions,
       confidence,
       totalFound: Object.keys(validatedAnswers).length,
       strategy,
@@ -85,6 +87,7 @@ async function parseMarkingScheme(filePath) {
     console.error('Parsing error:', error.message);
     return {
       answers: {},
+      discountedQuestions: [],
       confidence: 'low',
       totalFound: 0,
       strategy: 'failed',
@@ -161,11 +164,11 @@ function parseDenseFormat(text) {
   const answers = {};
   
   // Look for answer key section markers
-  const keySection = text.match(/(?:key|answer\s*key|correct\s*answer)[s]?\s*[\n:]([\s\S]*?)(?:\n\n|\Z)/i);
+  const keySection = text.match(/(?:key|answer\s*key|correct\s*answer)[s]?\s*[\n:]([\s\S]*?)(?:\n\n|$)/i);
   const searchText = keySection ? keySection[1] : text;
   
   // Match any number followed by a single letter A-D
-  const regex = /(\d{1,2})\s*[\.:\-\s]+\s*([A-Da-d])/g;
+  const regex = /(\d{1,2})\s*[.:\s-]+\s*([A-Da-d])/g;
   let match;
   while ((match = regex.exec(searchText)) !== null) {
     const qNum = parseInt(match[1]);
@@ -177,6 +180,19 @@ function parseDenseFormat(text) {
     }
   }
   return answers;
+}
+
+function parseDiscountedQuestions(text) {
+  const discounted = new Set();
+  const regex = /\b(\d{1,2})\s+Question\s+discounted\b/gi;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    const qNum = parseInt(match[1]);
+    if (qNum >= 1 && qNum <= 40) discounted.add(qNum);
+  }
+
+  return Array.from(discounted).sort((a, b) => a - b);
 }
 
 module.exports = { parseMarkingScheme };

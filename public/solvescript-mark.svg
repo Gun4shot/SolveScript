@@ -1,0 +1,8 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SolveScript mark</title>
+  <desc id="desc">A minimal paper and check mark logo.</desc>
+  <rect x="15" y="9" width="34" height="46" rx="7" fill="#FBFDFF" stroke="#153653" stroke-width="3"/>
+  <path d="M24 24H40" stroke="#153653" stroke-width="3" stroke-linecap="round"/>
+  <path d="M24 33H35" stroke="#7EA3BF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M24 43L29 48L42 35" stroke="#EF565C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

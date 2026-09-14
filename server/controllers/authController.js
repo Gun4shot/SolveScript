@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const Joi = require('joi');
+const crypto = require('crypto');
 const User = require('../models/User');
 
 // Validation schemas
@@ -14,35 +15,79 @@ const loginSchema = Joi.object({
   password: Joi.string().required()
 });
 
+const profileSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(50).required()
+});
+
+const publicUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  settings: user.settings,
+  needsProfileName: Boolean(user.needsProfileName)
+});
+
 // Generate tokens
 const generateAccessToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '15m'
+    expiresIn: process.env.JWT_EXPIRE || '30m'
   });
 };
 
 const generateRefreshToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRE || '7d'
+    expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d'
   });
+};
+
+const tokenLifetimeMs = (token) => {
+  const expiresAt = jwt.decode(token)?.exp;
+  if (!expiresAt) throw new Error('Session token is missing an expiry time.');
+  return Math.max(0, expiresAt * 1000 - Date.now());
 };
 
 const setTokenCookies = (res, accessToken, refreshToken) => {
   const isProduction = process.env.NODE_ENV === 'production';
-  
-  res.cookie('accessToken', accessToken, {
+  const cookieBase = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
-    maxAge: 15 * 60 * 1000 // 15 minutes
+    sameSite: isProduction ? 'strict' : 'lax'
+  };
+
+  res.cookie('accessToken', accessToken, {
+    ...cookieBase,
+    maxAge: tokenLifetimeMs(accessToken)
   });
 
   res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    ...cookieBase,
+    maxAge: tokenLifetimeMs(refreshToken)
   });
+};
+
+const googleStateCookie = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/api/auth/google/callback'
+});
+
+const googleConfig = () => {
+  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL } = process.env;
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_CALLBACK_URL) {
+    const error = new Error('Google sign-in is not configured on this server.');
+    error.statusCode = 503;
+    throw error;
+  }
+  return { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET, callbackUrl: GOOGLE_CALLBACK_URL };
+};
+
+const clientUrl = () => (process.env.CLIENT_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
+
+const loginRedirect = (res, params = {}) => {
+  const url = new URL('/login', clientUrl());
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  res.redirect(url.toString());
 };
 
 // @desc    Register user
@@ -67,15 +112,8 @@ exports.register = async (req, res, next) => {
     const refreshToken = generateRefreshToken(user._id);
     setTokenCookies(res, accessToken, refreshToken);
 
-    res.status(201).json({
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        settings: user.settings
-      },
-      accessToken
-    });
+    // Tokens are cookie-only so client-side scripts can never read them.
+    res.status(201).json({ user: publicUser(user) });
   } catch (error) {
     next(error);
   }
@@ -106,15 +144,7 @@ exports.login = async (req, res, next) => {
     const refreshToken = generateRefreshToken(user._id);
     setTokenCookies(res, accessToken, refreshToken);
 
-    res.json({
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        settings: user.settings
-      },
-      accessToken
-    });
+    res.json({ user: publicUser(user) });
   } catch (error) {
     next(error);
   }
@@ -132,18 +162,115 @@ exports.logout = (req, res) => {
 // @route   GET /api/auth/me
 exports.getMe = async (req, res) => {
   res.json({
-    user: {
-      id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
-      settings: req.user.settings
-    }
+    user: publicUser(req.user)
   });
+};
+
+// @desc    Start Google OAuth authorization-code flow
+// @route   GET /api/auth/google
+exports.googleAuth = (req, res, next) => {
+  try {
+    const { clientId, callbackUrl } = googleConfig();
+    const state = crypto.randomBytes(32).toString('hex');
+    res.cookie('googleOAuthState', state, { ...googleStateCookie(), maxAge: 10 * 60 * 1000 });
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: callbackUrl,
+      response_type: 'code',
+      scope: 'openid email profile',
+      state,
+      prompt: 'select_account'
+    });
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  } catch (error) {
+    if (error.statusCode === 503) return loginRedirect(res, { authError: 'google_not_configured' });
+    next(error);
+  }
+};
+
+// @desc    Complete Google OAuth authorization-code flow
+// @route   GET /api/auth/google/callback
+exports.googleCallback = async (req, res, next) => {
+  const cookieOptions = googleStateCookie();
+  try {
+    const { code, state, error: providerError } = req.query;
+    const expectedState = req.cookies?.googleOAuthState;
+    res.clearCookie('googleOAuthState', cookieOptions);
+
+    if (providerError) return loginRedirect(res, { authError: 'google_cancelled' });
+    if (!code || !state || !expectedState || state.length !== expectedState.length ||
+      !crypto.timingSafeEqual(Buffer.from(state), Buffer.from(expectedState))) {
+      return loginRedirect(res, { authError: 'google_state' });
+    }
+
+    const { clientId, clientSecret, callbackUrl } = googleConfig();
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: callbackUrl,
+        grant_type: 'authorization_code'
+      })
+    });
+    const tokens = await tokenResponse.json();
+    if (!tokenResponse.ok || !tokens.access_token) {
+      return loginRedirect(res, { authError: 'google_exchange' });
+    }
+
+    const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` }
+    });
+    const profile = await profileResponse.json();
+    if (!profileResponse.ok || !profile.sub || !profile.email || profile.email_verified !== true) {
+      return loginRedirect(res, { authError: 'google_profile' });
+    }
+
+    const email = profile.email.toLowerCase().trim();
+    let user = await User.findOne({ $or: [{ googleId: profile.sub }, { email }] }).select('+googleId');
+    let firstGoogleLogin = false;
+    if (!user) {
+      user = await User.create({
+        googleId: profile.sub,
+        email,
+        name: 'Student',
+        needsProfileName: true
+      });
+      firstGoogleLogin = true;
+    } else if (!user.googleId) {
+      user.googleId = profile.sub;
+      await user.save();
+    }
+
+    const accessToken = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+    setTokenCookies(res, accessToken, refreshToken);
+    return loginRedirect(res, { google: firstGoogleLogin || user.needsProfileName ? 'profile' : 'success' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Set a first-time Google user's display name
+// @route   POST /api/auth/profile
+exports.completeProfile = async (req, res, next) => {
+  try {
+    const { error, value } = profileSchema.validate(req.body);
+    if (error) return res.status(400).json({ message: error.details[0].message });
+    req.user.name = value.name;
+    req.user.needsProfileName = false;
+    await req.user.save();
+    res.json({ user: publicUser(req.user) });
+  } catch (error) {
+    next(error);
+  }
 };
 
 // @desc    Refresh access token
 // @route   POST /api/auth/refresh
-exports.refresh = async (req, res, next) => {
+exports.refresh = async (req, res) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
@@ -160,16 +287,8 @@ exports.refresh = async (req, res, next) => {
     const newRefreshToken = generateRefreshToken(user._id);
     setTokenCookies(res, newAccessToken, newRefreshToken);
 
-    res.json({
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        settings: user.settings
-      },
-      accessToken: newAccessToken
-    });
-  } catch (error) {
+    res.json({ user: publicUser(user) });
+  } catch {
     res.status(401).json({ message: 'Invalid refresh token' });
   }
 };

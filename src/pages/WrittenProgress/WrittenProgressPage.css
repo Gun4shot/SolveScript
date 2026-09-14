@@ -1,0 +1,508 @@
+.written-progress-page {
+  min-height: calc(100dvh - 68px);
+  padding: 30px 38px 80px;
+  background: #edf2ee;
+  color: #27444a;
+}
+
+.collections-hero,
+.collection-folder-grid,
+.written-progress-empty {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.collections-hero {
+  position: relative;
+  padding-bottom: 27px;
+  border-bottom: 1px solid #cbdad3;
+}
+
+.collections-hero .eyebrow {
+  margin: 0;
+  color: #6d8a80;
+  font: 700 10px/1.2 var(--font-mono);
+  letter-spacing: .12em;
+}
+
+.written-progress-page h1 {
+  margin: 5px 0 10px;
+  color: #2b605b;
+  font: 44px/1 var(--font-display);
+  letter-spacing: -.035em;
+}
+
+.collections-hero > p {
+  max-width: 670px;
+  margin: 0;
+  color: #647a73;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.collection-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #bfd0c8;
+  border-radius: 4px;
+  background: #fbfcf8;
+  color: #487269;
+  font: 700 10px var(--font-mono);
+}
+
+.collection-back:hover {
+  border-color: #6e9d8e;
+  background: #e6f0e9;
+}
+
+.collection-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: #71847d;
+  font: 9px/1.4 var(--font-mono);
+  text-transform: uppercase;
+}
+
+.collection-breadcrumb button {
+  padding: 0;
+  color: #356b63;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.collection-breadcrumb button:hover {
+  color: #183e40;
+}
+
+.collection-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 22px;
+  margin-top: 30px;
+}
+
+.collection-folder-grid.years {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.collection-folder-grid.sessions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.collection-folder-grid.papers {
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.collection-folder-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 264px;
+  overflow: hidden;
+  padding: 24px;
+  border: 1px solid #b9cec4;
+  background: linear-gradient(145deg, #ffffff 0%, #f7fbf7 100%);
+  box-shadow: 7px 8px 0 #ccdcd4;
+  color: #2c615b;
+  cursor: pointer;
+  text-align: left;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.collection-folder-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 86px;
+  height: 7px;
+  border-right: 1px solid #b9cec4;
+  border-bottom: 1px solid #b9cec4;
+  border-radius: 0 0 5px 0;
+  background: #e4eee8;
+}
+
+.collection-folder-card:hover,
+.collection-folder-card:focus-visible {
+  border-color: #6f9e8f;
+  box-shadow: 11px 12px 0 #bcd2c7;
+  outline: none;
+  transform: translate(-3px, -4px);
+}
+
+.collection-folder-card.year {
+  min-height: 190px;
+  padding: 19px;
+  box-shadow: 5px 6px 0 #d1ded7;
+}
+
+.collection-folder-card.year::before {
+  width: 66px;
+}
+
+.collection-folder-card.session {
+  min-height: 182px;
+  padding: 19px;
+  background: #fffefa;
+  box-shadow: 5px 6px 0 #d4dfd9;
+}
+
+.collection-folder-tab {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  margin-top: 5px;
+  padding: 0 7px;
+  border: 1px solid #c4d5cc;
+  border-radius: 2px;
+  background: #e9f2ec;
+  color: #5d7f73;
+  font: 700 8px/1 var(--font-mono);
+  letter-spacing: .08em;
+}
+
+.collection-folder-card.year .collection-folder-tab,
+.collection-folder-card.session .collection-folder-tab {
+  min-height: 18px;
+  font-size: 7px;
+}
+
+.collection-folder-icon {
+  display: grid;
+  width: 58px;
+  height: 51px;
+  place-items: center;
+  margin-top: 23px;
+  border: 1px solid #9ab9ac;
+  border-radius: 3px;
+  background: #dbe9e1;
+  color: #347065;
+}
+
+.collection-folder-card.year .collection-folder-icon,
+.collection-folder-card.session .collection-folder-icon {
+  width: 44px;
+  height: 39px;
+  margin-top: 16px;
+}
+
+.collection-folder-card b {
+  margin-top: 17px;
+  color: #244e4d;
+  font: 22px/1.05 var(--font-display);
+  letter-spacing: -.02em;
+}
+
+.collection-folder-card.year b,
+.collection-folder-card.session b {
+  margin-top: 13px;
+  font-size: 18px;
+}
+
+.collection-folder-card small {
+  margin-top: 7px;
+  color: #698078;
+  font: 9px/1.45 var(--font-mono);
+}
+
+.collection-folder-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 20px;
+  color: #3a7167;
+  font: 700 9px/1 var(--font-mono);
+  text-transform: uppercase;
+}
+
+.collection-card {
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  border: 1px solid #bed0c8;
+  background: #fffefa;
+  box-shadow: 6px 7px 0 #ceded6;
+}
+
+.collection-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #d7e2dc;
+}
+
+.collection-card-kicker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 7px;
+  color: #628277;
+  font: 700 9px/1 var(--font-mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.collection-card h2 {
+  margin: 0;
+  color: #285a55;
+  font: 26px/1.1 var(--font-display);
+}
+
+.collection-card-meta {
+  margin: 8px 0 0;
+  color: #6d817a;
+  font-size: 11px;
+}
+
+.collection-score {
+  flex: 0 0 auto;
+  min-width: 82px;
+  padding: 10px 12px;
+  border: 1px solid #bcd1c6;
+  border-radius: 3px;
+  background: #e8f2ec;
+  color: #32685f;
+  text-align: center;
+}
+
+.collection-score strong {
+  display: block;
+  font: 20px/1 var(--font-display);
+}
+
+.collection-score span {
+  display: block;
+  margin-top: 3px;
+  font: 700 8px/1 var(--font-mono);
+  text-transform: uppercase;
+}
+
+.collection-components {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.collection-component {
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid #d3e0d9;
+  background: #f7faf6;
+}
+
+.collection-component b,
+.collection-component span {
+  display: block;
+}
+
+.collection-component b {
+  color: #486b62;
+  font: 700 9px/1.35 var(--font-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.collection-component span {
+  margin-top: 8px;
+  color: #254d4c;
+  font: 14px/1.25 var(--font-display);
+}
+
+.collection-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #d7e2dc;
+}
+
+.collection-history a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #bfd2c8;
+  background: #f4f9f5;
+  color: #356d63;
+  font: 700 9px/1 var(--font-mono);
+}
+
+.collection-history a:hover,
+.collection-history a:focus-visible {
+  border-color: #709d8f;
+  background: #e5f0e9;
+  outline: none;
+}
+
+.written-progress-empty {
+  margin-top: 30px;
+  padding: 38px;
+  border: 1px dashed #aec5ba;
+  background: #f8fbf8;
+  color: #607a71;
+  text-align: center;
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .collection-folder-grid.years { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .written-progress-page { padding: 28px 18px 62px; }
+  .written-progress-page h1 { font-size: 36px; }
+  .collection-folder-grid,
+  .collection-folder-grid.sessions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .collection-folder-grid.years { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .collection-folder-card { min-height: 222px; padding: 19px; }
+}
+
+@media (max-width: 520px) {
+  .collections-hero { padding-top: 42px; }
+  .collection-back { right: auto; left: 0; }
+  .collection-folder-grid,
+  .collection-folder-grid.years,
+  .collection-folder-grid.sessions { grid-template-columns: 1fr; }
+  .collection-folder-card,
+  .collection-folder-card.year,
+  .collection-folder-card.session { min-height: 174px; }
+  .collection-card { padding: 17px; }
+  .collection-card-head { display: block; }
+  .collection-score { display: inline-block; margin-top: 14px; }
+  .collection-components { grid-template-columns: 1fr; }
+}
+
+.collection-history {
+  display: grid;
+  gap: 10px;
+}
+
+.collection-history > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 5px;
+}
+
+.collection-history h3 {
+  margin: 4px 0 0;
+  color: #315f5a;
+  font: 19px/1.1 var(--font-display);
+}
+
+.collection-history > header > p {
+  max-width: 230px;
+  margin: 0;
+  color: #70847c;
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.collection-version {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 72px;
+  padding: 13px;
+  border: 1px solid #d2dfd8;
+  background: #f8fbf8;
+}
+
+.collection-version.selected {
+  border-color: #77a895;
+  background: #e9f4ed;
+}
+
+.collection-version > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.collection-version > div:first-child > span,
+.collection-version small {
+  color: #668079;
+  font: 9px/1.35 var(--font-mono);
+  text-transform: uppercase;
+}
+
+.collection-version strong {
+  color: #285853;
+  font: 15px/1.2 var(--font-display);
+}
+
+.collection-version-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.collection-version-actions > a,
+.collection-version-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 31px;
+  padding: 0 9px;
+  border: 1px solid #bdd2c7;
+  background: #fffefa;
+  color: #356d63;
+  font: 700 9px/1 var(--font-mono);
+}
+
+.collection-version-actions > a:hover,
+.collection-version-actions > button:hover:not(:disabled),
+.collection-version-actions > a:focus-visible,
+.collection-version-actions > button:focus-visible {
+  border-color: #709d8f;
+  background: #e2efe7;
+  outline: none;
+}
+
+.collection-version-actions > button:disabled {
+  cursor: default;
+  opacity: .64;
+}
+
+.collection-version-actions .collection-select-version {
+  background: #e8f3eb;
+}
+
+.collection-version-actions .collection-delete-version {
+  width: 32px;
+  padding: 0;
+  border-color: #dfbeb8;
+  color: #a9514a;
+}
+
+@media (max-width: 640px) {
+  .collection-history > header,
+  .collection-version { align-items: flex-start; flex-direction: column; }
+  .collection-history > header > p { max-width: none; text-align: left; }
+  .collection-version-actions { width: 100%; justify-content: flex-start; }
+}

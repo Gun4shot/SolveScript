@@ -1,0 +1,6 @@
+.container-scroll { min-height: 1040px; padding: 122px 20px 100px; perspective: 1100px; }
+.container-scroll-title { position: relative; z-index: 2; max-width: 850px; margin: 0 auto 80px; text-align: center; }
+.container-scroll-perspective { max-width: 1050px; margin: 0 auto; perspective: 1100px; }
+.container-scroll-card { min-height: 590px; overflow: hidden; transform-origin: top center; border: 9px solid #172b51; border-radius: 28px; background: #172b51; box-shadow: 0 12px 25px rgba(6, 29, 72, .25), 0 42px 66px rgba(6, 29, 72, .18), 0 114px 95px rgba(6, 29, 72, .1); }
+@media (max-width: 768px) { .container-scroll { min-height: 780px; padding: 75px 12px 40px; }.container-scroll-title { margin-bottom: 42px; }.container-scroll-card { min-height: 420px; border-width: 5px; border-radius: 17px; } }
+@media (prefers-reduced-motion: reduce) { .container-scroll-title, .container-scroll-card { transform: none !important; } }

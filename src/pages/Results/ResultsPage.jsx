@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { attemptsAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { accountKey, readSaved } from '../../components/studio/studyData';
 import './ResultsPage.css';
 
 export default function ResultsPage() {
   const { attemptId } = useParams();
+  const { user } = useAuth();
   const toast = useToast();
   const [attempt, setAttempt] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,25 +16,26 @@ export default function ResultsPage() {
   useEffect(() => {
     const load = async () => {
       try {
+        if (attemptId.startsWith('local-')) {
+          const saved = readSaved(`solvescript:attempts:${accountKey(user)}`, []);
+          setAttempt(Array.isArray(saved) ? saved.find((item) => item.id === attemptId) || null : null);
+          return;
+        }
         const res = await attemptsAPI.getOne(attemptId);
         setAttempt(res.data.attempt);
-      } catch (err) {
+      } catch {
         toast.error('Failed to load results');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [attemptId]);
+  }, [attemptId, toast, user]);
 
   if (loading) return <div className="solver-loading"><div className="spinner spinner-lg" /><p className="text-secondary">Loading results...</p></div>;
-  if (!attempt) return <div className="solver-loading"><p className="text-secondary">Results not found</p></div>;
+  if (!attempt) return <div className="solver-loading"><p className="text-secondary">We could not find those results. They may have been removed or saved in a different browser session.</p><div className="results-actions"><Link to="/dashboard" className="btn btn-secondary">Back to dashboard</Link><Link to="/library" className="btn btn-primary">Choose a paper</Link></div></div>;
 
   const answers = attempt.answers || {};
-  const answeredQuestions = Object.entries(answers).filter(([_, a]) => a.selected);
-  const correctList = Object.entries(answers).filter(([_, a]) => a.isCorrect);
-  const wrongList = Object.entries(answers).filter(([_, a]) => a.selected && !a.isCorrect);
-  const skippedList = Object.entries(answers).filter(([_, a]) => !a.selected);
 
   const formatTime = (s) => {
     if (!s || s === 0) return '0s';
@@ -110,8 +114,14 @@ export default function ResultsPage() {
         {/* Question Breakdown */}
         <div className="breakdown-section card animate-fade-in-up stagger-2">
           <h2 style={{ marginBottom: 'var(--space-5)' }}>Question Breakdown</h2>
+          <div className="breakdown-legend">
+            <span><strong>Your answer</strong></span>
+            <span><strong>Correct</strong></span>
+            <span><strong>Time</strong></span>
+            <span><strong>Status</strong></span>
+          </div>
           <div className="breakdown-list">
-            {Array.from({ length: 40 }, (_, i) => i + 1).map(q => {
+            {Object.keys(answers).map(Number).sort((a, b) => a - b).map(q => {
               const a = answers[q] || {};
               const status = !a.selected ? 'skipped' : a.isCorrect ? 'correct' : 'wrong';
               return (
@@ -121,23 +131,17 @@ export default function ResultsPage() {
                   <span className="breakdown-correct">{a.correct}</span>
                   <span className="breakdown-time">{formatTime(a.timeSpent)}</span>
                   <span className={`breakdown-status ${status}`}>
-                    {status === 'correct' ? '✓' : status === 'wrong' ? '✕' : '—'}
+                    <span aria-hidden="true">{status === 'correct' ? '✓' : status === 'wrong' ? '✕' : '—'}</span><span className="sr-only">{status}</span>
                   </span>
                 </div>
               );
             })}
           </div>
-          <div className="breakdown-legend">
-            <span><strong>Your Answer</strong></span>
-            <span><strong>Correct</strong></span>
-            <span><strong>Time</strong></span>
-            <span><strong>Status</strong></span>
-          </div>
         </div>
 
         <div className="results-actions animate-fade-in-up">
           <Link to="/dashboard" className="btn btn-secondary btn-lg">Dashboard</Link>
-          <Link to="/upload" className="btn btn-primary btn-lg">Solve Another Paper</Link>
+          <Link to="/library" className="btn btn-primary btn-lg">Solve Another Paper</Link>
         </div>
       </div>
     </div>

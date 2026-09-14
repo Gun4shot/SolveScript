@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">SolveScript character mark</title>
+  <path fill="#79CBE7" d="M83 13h27a7 7 0 0 1 7 7v74a7 7 0 0 1-11 5l-9.5-7-9.5 7a7 7 0 0 1-11-5V20a7 7 0 0 1 7-7Z"/>
+  <path fill="#F06A61" d="m97 75 10 9 10-9v19a7 7 0 0 1-11 5l-9.5-7-9.5 7a7 7 0 0 1-11-5V75l10 9 10-9Z"/>
+  <path fill="#173B61" d="M25 45c0-17 14-30 32-30 21 0 35 15 35 36v29c0 18-15 31-34 31H44c-17 0-29-12-29-28V59c0-7 4-12 10-14Z"/>
+  <path fill="#173B61" d="M17 59c0-17 12-31 28-31 13 0 22 8 24 19l-3 42H30c-7 0-13-6-13-13V59Z"/>
+  <path fill="#F5AE78" d="M31 54c0-16 11-27 27-27 17 0 29 12 29 29v23c0 17-12 28-29 28-16 0-27-11-27-27V54Z"/>
+  <path fill="#173B61" d="M31 57c3-20 15-30 32-30 13 0 23 7 28 19-10-6-20-8-30-6-12 2-20 8-30 17Z"/>
+  <path fill="#FFFDF9" d="M38 66c0-7 5-12 12-12s12 5 12 12v9c0 7-5 12-12 12s-12-5-12-12v-9Zm28 0c0-7 5-12 12-12s12 5 12 12v9c0 7-5 12-12 12s-12-5-12-12v-9Z"/>
+  <circle cx="52" cy="70" r="4.5" fill="#173B61"/>
+  <circle cx="78" cy="70" r="4.5" fill="#173B61"/>
+  <path fill="none" stroke="#173B61" stroke-linecap="round" stroke-width="4" d="M57 91c4 4 10 4 14 0"/>
+  <circle cx="91" cy="89" r="7" fill="#7DE0BF"/>
+</svg>

@@ -8,14 +8,15 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const load = async () => {
       try {
         const res = await attemptsAPI.getAll();
         setAttempts(res.data.attempts);
-      } catch (err) {
-        console.error(err);
+      } catch {
+        setError('Your paper history could not be loaded. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -45,17 +46,22 @@ export default function HistoryPage() {
         </div>
 
         <div className="history-filters animate-fade-in-up stagger-1">
-          <input className="input" placeholder="Search papers..." value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: '300px' }} />
+          <input className="input" aria-label="Search paper history" placeholder="Search papers..." value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: '300px' }} />
           <div className="filter-tabs">
             {['all', 'exam', 'casual'].map(f => (
-              <button key={f} className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(f)}>
+              <button key={f} aria-pressed={filter === f} className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(f)}>
                 {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
           </div>
         </div>
 
-        {loading ? (
+        {error ? (
+          <div className="card" role="alert" style={{ textAlign: 'center', padding: 'var(--space-10)' }}>
+            <p className="text-secondary">{error}</p>
+            <button className="btn btn-primary" style={{ marginTop: 'var(--space-4)' }} onClick={() => { setError(''); setLoading(true); attemptsAPI.getAll().then((res) => setAttempts(res.data.attempts)).catch(() => setError('Your paper history could not be loaded. Please try again.')).finally(() => setLoading(false)); }}>Try again</button>
+          </div>
+        ) : loading ? (
           <div style={{ textAlign: 'center', padding: 'var(--space-10)' }}><div className="spinner spinner-lg" style={{ margin: '0 auto' }} /></div>
         ) : filtered.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: 'var(--space-10)' }}>

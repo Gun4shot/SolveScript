@@ -14,7 +14,13 @@ const protect = async (req, res, next) => {
     }
 
     if (!token) {
-      return res.status(401).json({ message: 'Not authorized, no token' });
+      // Browsers can remove an expired access-token cookie before this request
+      // reaches the server. Tell the client to use its still-valid refresh cookie
+      // instead of treating that normal expiry as a logout.
+      return res.status(401).json({
+        message: 'Not authorized, no token',
+        expired: Boolean(req.cookies?.refreshToken)
+      });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -47,7 +53,7 @@ const optionalAuth = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = await User.findById(decoded.id);
     }
-  } catch (error) {
+  } catch {
     // Silently continue without user
   }
   next();

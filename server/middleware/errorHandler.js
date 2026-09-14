@@ -1,4 +1,6 @@
 const errorHandler = (err, req, res, next) => {
+  // Keep Express's four-argument error-handler signature.
+  void next;
   let error = { ...err };
   error.message = err.message;
 
@@ -15,6 +17,10 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json({ message: messages.join(', ') });
   }
 
+  if (err.name === 'CastError') {
+    return res.status(400).json({ message: 'Invalid resource identifier' });
+  }
+
   // Multer file size error
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ message: 'File too large. Maximum size is 50MB.' });
@@ -25,8 +31,10 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json({ message: err.message });
   }
 
-  res.status(error.status || error.statusCode || 500).json({
-    message: error.message || 'Server Error'
+  const status = error.status || error.statusCode || 500;
+  // The complete error is logged above; never expose database or file details.
+  res.status(status).json({
+    message: status >= 500 ? 'Something went wrong. Please try again.' : (error.message || 'Request could not be completed.')
   });
 };
 

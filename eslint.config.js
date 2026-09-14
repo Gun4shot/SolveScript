@@ -26,4 +26,25 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    files: ['server/**/*.js', 'server/**/*.cjs'],
+    languageOptions: {
+      globals: globals.node,
+      parserOptions: {
+        sourceType: 'commonjs',
+      },
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      'react-hooks/static-components': 'off',
+      'react-hooks/use-memo': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

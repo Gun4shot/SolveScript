@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
+import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { papersAPI } from '../../services/api';
+import StudioDialog from '../../components/studio/StudioDialog';
 import './UploadPage.css';
 
 const SUBJECTS = [
@@ -34,11 +36,7 @@ export default function UploadPage() {
   const [answers, setAnswers] = useState({});
   const [showCorrection, setShowCorrection] = useState(false);
 
-  // Mode selection state
-  const [mode, setMode] = useState('');
-  const [customTime, setCustomTime] = useState(60);
-  const [showInstantFeedback, setShowInstantFeedback] = useState(true);
-  const [step, setStep] = useState(1); // 1: upload, 2: mode select
+  const [step, setStep] = useState(1); // 1: upload, 2: ready
 
   const onDropQuestion = useCallback((files) => {
     if (files[0]) setQuestionPaper(files[0]);
@@ -68,29 +66,29 @@ export default function UploadPage() {
   };
 
   const handleUpload = async () => {
-    if (!questionPaper || !markingScheme) {
-      toast.error('Please upload both PDFs');
+    if (!questionPaper || (isAuthenticated && !markingScheme)) {
+      toast.error(isAuthenticated ? 'Please upload both PDFs' : 'Please upload a question paper PDF');
       return;
     }
 
     if (!isAuthenticated) {
-      // Guest mode: store files in memory and go straight to solver
+      // Guest papers remain in this browser session and cannot be auto-marked.
       const autoTitle = title || generateTitle() || 'Guest Paper';
       const qpUrl = URL.createObjectURL(questionPaper);
       
-      // For guest mode, we need to parse the marking scheme client-side
-      // Store in sessionStorage for the solver page
       const guestPaper = {
         id: 'guest-' + Date.now(),
         title: autoTitle,
         questionPaperBlob: qpUrl,
-        isGuest: true
+        isGuest: true,
+        ungraded: true,
       };
       
       sessionStorage.setItem('currentPaperId', guestPaper.id);
+      sessionStorage.setItem('currentPaperTitle', guestPaper.title);
       sessionStorage.setItem('guestPaperData', JSON.stringify(guestPaper));
       
-      toast.info('Guest mode: Paper saving is disabled. Sign up to save your progress!');
+      toast.info('Guest practice is ungraded and works in this browser session only. Sign in to upload a marking scheme and save work.');
       setStep(2);
       return;
     }
@@ -122,8 +120,8 @@ export default function UploadPage() {
       // Store paper ID for solver
       sessionStorage.setItem('currentPaperId', res.data.paper.id);
       sessionStorage.setItem('currentPaperTitle', res.data.paper.title);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Upload failed');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -142,24 +140,18 @@ export default function UploadPage() {
       toast.success('Answers saved!');
       setShowCorrection(false);
       setStep(2);
-    } catch (err) {
+    } catch {
       toast.error('Failed to save corrections');
     }
   };
 
   const handleStartSolving = () => {
-    if (!mode) {
-      toast.error('Please select a mode');
+    const paperId = sessionStorage.getItem('currentPaperId');
+    if (!paperId) {
+      toast.error('Paper is not ready yet');
       return;
     }
-
-    const paperId = sessionStorage.getItem('currentPaperId');
-    const config = {
-      mode,
-      customTime: mode === 'exam' ? customTime : 0,
-      showInstantFeedback: mode === 'casual' ? showInstantFeedback : false
-    };
-    sessionStorage.setItem('solverConfig', JSON.stringify(config));
+    sessionStorage.removeItem('solverConfig');
     navigate(`/solve/${paperId}`);
   };
 
@@ -170,7 +162,7 @@ export default function UploadPage() {
         <div className="container">
           <div className="upload-header animate-fade-in-up">
             <h1>Upload Paper</h1>
-            <p className="text-secondary">Upload your question paper and marking scheme to get started</p>
+            <p className="text-secondary">{isAuthenticated ? 'Upload your question paper and marking scheme to get automatic feedback.' : 'Upload a question paper to practise in this browser. Sign in to add a marking scheme and save your work.'}</p>
           </div>
 
           <div className="upload-grid">
@@ -178,10 +170,10 @@ export default function UploadPage() {
             <div className="upload-section animate-fade-in-up stagger-1">
               <h3>Question Paper</h3>
               <div
-                {...qpDropzone.getRootProps()}
+                {...qpDropzone.getRootProps({ 'aria-label': 'Upload question paper PDF' })}
                 className={`dropzone ${qpDropzone.isDragActive ? 'dropzone-active' : ''} ${questionPaper ? 'dropzone-done' : ''}`}
               >
-                <input {...qpDropzone.getInputProps()} />
+                <input {...qpDropzone.getInputProps({ 'aria-label': 'Choose question paper PDF' })} />
                 {questionPaper ? (
                   <div className="dropzone-file">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2">
@@ -207,13 +199,13 @@ export default function UploadPage() {
               </div>
             </div>
 
-            <div className="upload-section animate-fade-in-up stagger-2">
+            {isAuthenticated ? <div className="upload-section animate-fade-in-up stagger-2">
               <h3>Marking Scheme</h3>
               <div
-                {...msDropzone.getRootProps()}
+                {...msDropzone.getRootProps({ 'aria-label': 'Upload marking scheme PDF' })}
                 className={`dropzone ${msDropzone.isDragActive ? 'dropzone-active' : ''} ${markingScheme ? 'dropzone-done' : ''}`}
               >
-                <input {...msDropzone.getInputProps()} />
+                <input {...msDropzone.getInputProps({ 'aria-label': 'Choose marking scheme PDF' })} />
                 {markingScheme ? (
                   <div className="dropzone-file">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2">
@@ -237,7 +229,11 @@ export default function UploadPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div> : <section className="upload-section upload-signin-note animate-fade-in-up stagger-2" aria-label="Automatic marking requires an account">
+              <h3>Automatic marking</h3>
+              <p>Sign in to upload a marking scheme, check every answer, and keep this paper after this browser session.</p>
+              <Link className="btn btn-secondary btn-sm" to="/login">Sign in for automatic marking</Link>
+            </section>}
           </div>
 
           {/* Metadata */}
@@ -245,56 +241,55 @@ export default function UploadPage() {
             <h3 style={{ marginBottom: 'var(--space-5)' }}>Paper Details</h3>
             <div className="metadata-grid">
               <div className="input-group">
-                <label className="input-label">Subject</label>
-                <select className="select" value={subject} onChange={e => setSubject(e.target.value)}>
+                <label className="input-label" htmlFor="paper-subject">Subject</label>
+                <select id="paper-subject" className="select" value={subject} onChange={e => setSubject(e.target.value)}>
                   <option value="">Select subject</option>
                   {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
 
               <div className="input-group">
-                <label className="input-label">Level</label>
-                <div className="checkbox-group">
+                <fieldset className="input-fieldset"><legend className="input-label">Level</legend><div className="checkbox-group">
                   {['AS', 'A2'].map(l => (
                     <label key={l} className={`checkbox-card ${level === l ? 'active' : ''}`}>
                       <input type="radio" name="level" value={l} checked={level === l} onChange={e => setLevel(e.target.value)} />
                       <span>{l}</span>
                     </label>
                   ))}
-                </div>
+                </div></fieldset>
               </div>
 
               <div className="input-group">
-                <label className="input-label">Session</label>
-                <select className="select" value={session} onChange={e => setSession(e.target.value)}>
+                <label className="input-label" htmlFor="paper-session">Session</label>
+                <select id="paper-session" className="select" value={session} onChange={e => setSession(e.target.value)}>
                   <option value="">Select session</option>
                   {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
 
               <div className="input-group">
-                <label className="input-label">Year</label>
-                <select className="select" value={year} onChange={e => setYear(e.target.value)}>
+                <label className="input-label" htmlFor="paper-year">Year</label>
+                <select id="paper-year" className="select" value={year} onChange={e => setYear(e.target.value)}>
                   <option value="">Select year</option>
                   {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
               </div>
 
               <div className="input-group">
-                <label className="input-label">Variant</label>
-                <div className="checkbox-group">
+                <fieldset className="input-fieldset"><legend className="input-label">Variant</legend><div className="checkbox-group">
                   {VARIANTS.map(v => (
                     <label key={v} className={`checkbox-card ${variant === v ? 'active' : ''}`}>
                       <input type="radio" name="variant" value={v} checked={variant === v} onChange={e => setVariant(e.target.value)} />
                       <span>V{v}</span>
                     </label>
                   ))}
-                </div>
+                </div></fieldset>
               </div>
 
               <div className="input-group">
-                <label className="input-label">Custom Title (optional)</label>
+                <label className="input-label" htmlFor="paper-title">Custom Title (optional)</label>
                 <input
+                  id="paper-title"
                   className="input"
                   placeholder={generateTitle() || 'e.g. Physics P1 May 2024'}
                   value={title}
@@ -308,16 +303,16 @@ export default function UploadPage() {
             <button
               className="btn btn-primary btn-lg"
               onClick={handleUpload}
-              disabled={uploading || !questionPaper || !markingScheme}
+              disabled={uploading || !questionPaper || (isAuthenticated && !markingScheme)}
             >
               {uploading ? (
                 <>
                   <span className="spinner" />
-                  Parsing marking scheme...
+                  {isAuthenticated ? 'Parsing marking scheme...' : 'Preparing paper...'}
                 </>
               ) : (
                 <>
-                  Upload & Parse
+                  {isAuthenticated ? 'Upload & Parse' : 'Open guest practice'}
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
@@ -326,13 +321,10 @@ export default function UploadPage() {
             </button>
           </div>
 
-          {/* Answer Correction Modal */}
           {showCorrection && (
-            <div className="modal-overlay" onClick={() => setShowCorrection(false)}>
-              <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+            <StudioDialog title="Verify answers" onClose={() => setShowCorrection(false)} className="answer-correction-dialog">
                 <div className="modal-header">
                   <h3>Verify Answers</h3>
-                  <button className="btn btn-ghost btn-icon" onClick={() => setShowCorrection(false)}>✕</button>
                 </div>
                 <div className="modal-body">
                   <p className="text-secondary" style={{ marginBottom: 'var(--space-5)' }}>
@@ -363,106 +355,37 @@ export default function UploadPage() {
                     Save & Continue
                   </button>
                 </div>
-              </div>
-            </div>
+            </StudioDialog>
           )}
         </div>
       </div>
     );
   }
 
-  // Step 2: Mode Selection
+  // Step 2: Ready
   return (
     <div className="upload-page">
       <div className="container">
-        <div className="upload-header animate-fade-in-up">
-          <h1>Choose Your Mode</h1>
-          <p className="text-secondary">How would you like to solve this paper?</p>
+        <div className="upload-header mode-header animate-fade-in-up">
+          <span className="mode-eyebrow">SolveScript session</span>
+          <h1>Your paper is ready.</h1>
+          <p className="text-secondary">Open it in the solver to choose casual practice or a timed session with custom duration.</p>
         </div>
 
-        <div className="mode-grid animate-fade-in-up">
-          <div
-            className={`mode-card glass-card ${mode === 'exam' ? 'mode-active' : ''}`}
-            onClick={() => setMode('exam')}
-          >
-            <div className="mode-icon exam-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
-            </div>
-            <h2>Exam Mode</h2>
-            <p className="text-secondary">Simulated exam conditions. Timer, no peeking at answers until you submit.</p>
-            
-            {mode === 'exam' && (
-              <div className="mode-options animate-fade-in-up">
-                <div className="input-group">
-                  <label className="input-label">Time Limit (minutes)</label>
-                  <div className="time-options">
-                    {[45, 60, 75, 90].map(t => (
-                      <button
-                        key={t}
-                        className={`btn btn-sm ${customTime === t ? 'btn-primary' : 'btn-secondary'}`}
-                        onClick={(e) => { e.stopPropagation(); setCustomTime(t); }}
-                      >
-                        {t} min
-                      </button>
-                    ))}
-                  </div>
-                  <input
-                    type="number"
-                    className="input"
-                    value={customTime}
-                    onChange={e => setCustomTime(Math.max(1, parseInt(e.target.value) || 60))}
-                    onClick={e => e.stopPropagation()}
-                    min="1"
-                    max="300"
-                    style={{ marginTop: 'var(--space-2)' }}
-                    placeholder="Custom time"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div
-            className={`mode-card glass-card ${mode === 'casual' ? 'mode-active' : ''}`}
-            onClick={() => setMode('casual')}
-          >
-            <div className="mode-icon casual-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-              </svg>
-            </div>
-            <h2>Casual Mode</h2>
-            <p className="text-secondary">No timer. Solve at your own pace. Toggle instant answer feedback.</p>
-            
-            {mode === 'casual' && (
-              <div className="mode-options animate-fade-in-up">
-                <label className="toggle-row" onClick={e => e.stopPropagation()}>
-                  <span>Show answers after each question</span>
-                  <button
-                    className={`toggle ${showInstantFeedback ? 'toggle-on' : ''}`}
-                    onClick={() => setShowInstantFeedback(!showInstantFeedback)}
-                  >
-                    <span className="toggle-thumb" />
-                  </button>
-                </label>
-              </div>
-            )}
+        <div className="paper-ready-card animate-fade-in-up">
+          <CheckCircle2 size={32} aria-hidden="true" />
+          <div>
+            <h2>{sessionStorage.getItem('currentPaperTitle') || title || generateTitle() || 'Uploaded paper'}</h2>
+            <p>{isAuthenticated ? 'The full paper view, annotations, answer sheet, and report card are ready.' : 'The full paper view and annotations are ready. Guest practice is not automatically marked or saved after this browser session.'}</p>
           </div>
         </div>
 
         <div className="upload-actions animate-fade-in-up">
           <button className="btn btn-secondary btn-lg" onClick={() => setStep(1)}>
-            ← Back
+            <ArrowLeft size={17} aria-hidden="true" /> Back
           </button>
-          <button className="btn btn-primary btn-lg" onClick={handleStartSolving} disabled={!mode}>
-            Start Solving
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+          <button className="btn btn-primary btn-lg" onClick={handleStartSolving}>
+            Open solver <ArrowRight size={17} aria-hidden="true" />
           </button>
         </div>
       </div>

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Mira Margin",
+    "file": "/characters/mira-margin.png",
+    "role": "Calm paper-planning student"
+  },
+  {
+    "name": "Theo Tally",
+    "file": "/characters/theo-tally.png",
+    "role": "Timing and progress student"
+  },
+  {
+    "name": "Sana Solve",
+    "file": "/characters/sana-solve.png",
+    "role": "Friendly answer-review student"
+  }
+]

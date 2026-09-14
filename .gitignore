@@ -26,3 +26,8 @@ dist-ssr
 # Backend
 .env
 server/uploads/
+server/storage/
+
+# Python bytecode cache
+__pycache__/
+*.py[cod]

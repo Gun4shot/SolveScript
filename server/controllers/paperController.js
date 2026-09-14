@@ -1,7 +1,23 @@
 const Paper = require('../models/Paper');
 const { parseMarkingScheme } = require('../services/markingSchemeParser');
+const { ensureQuestionCrops, getCropFile, toCropDTO } = require('../services/questionCropper');
 const path = require('path');
 const fs = require('fs');
+
+async function hasPdfSignature(filePath) {
+  const handle = await fs.promises.open(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(5);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    return bytesRead === 5 && buffer.toString('ascii') === '%PDF-';
+  } finally {
+    await handle.close();
+  }
+}
+
+async function removeFiles(files) {
+  await Promise.all(files.map((file) => fs.promises.unlink(file.path).catch(() => {})));
+}
 
 // @desc    Upload paper and marking scheme, parse answers
 // @route   POST /api/papers/upload
@@ -13,6 +29,17 @@ exports.uploadPaper = async (req, res, next) => {
 
     const questionPaperFile = req.files.questionPaper[0];
     const markingSchemeFile = req.files.markingScheme[0];
+
+    // MIME types are supplied by the browser and can be forged. Check the
+    // signature after upload, then discard invalid files before parsing them.
+    const validFiles = await Promise.all([
+      hasPdfSignature(questionPaperFile.path),
+      hasPdfSignature(markingSchemeFile.path),
+    ]);
+    if (!validFiles.every(Boolean)) {
+      await removeFiles([questionPaperFile, markingSchemeFile]);
+      return res.status(400).json({ message: 'Both uploads must be valid PDF files.' });
+    }
 
     // Parse marking scheme
     const parseResult = await parseMarkingScheme(markingSchemeFile.path);
@@ -159,6 +186,52 @@ exports.getPaperPDF = async (req, res, next) => {
 
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: 'File not found' });
+    }
+
+    res.sendFile(path.resolve(filePath));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Generate and return focused question crops for a saved paper
+// @route   GET /api/papers/:id/crops
+exports.getPaperQuestionCrops = async (req, res, next) => {
+  try {
+    const paper = await Paper.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!paper) {
+      return res.status(404).json({ message: 'Paper not found' });
+    }
+
+    const manifest = await ensureQuestionCrops(paper);
+    if (!manifest) {
+      return res.status(500).json({ message: 'Question crops could not be generated' });
+    }
+
+    res.json(toCropDTO(paper._id, manifest, 'papers'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Serve one focused question crop for a saved paper
+// @route   GET /api/papers/:id/crops/:question/image
+exports.getPaperQuestionCropImage = async (req, res, next) => {
+  try {
+    const questionNumber = Number(req.params.question);
+    if (!Number.isInteger(questionNumber) || questionNumber < 1) {
+      return res.status(400).json({ message: 'Invalid question number' });
+    }
+
+    const paper = await Paper.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!paper) {
+      return res.status(404).json({ message: 'Paper not found' });
+    }
+
+    const manifest = await ensureQuestionCrops(paper);
+    const filePath = getCropFile(manifest, questionNumber);
+    if (!filePath) {
+      return res.status(404).json({ message: 'Question crop not found' });
     }
 
     res.sendFile(path.resolve(filePath));

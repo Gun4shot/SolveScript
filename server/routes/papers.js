@@ -8,6 +8,8 @@ const {
   getPapers,
   getPaper,
   getPaperPDF,
+  getPaperQuestionCrops,
+  getPaperQuestionCropImage,
   deletePaper
 } = require('../controllers/paperController');
 
@@ -18,6 +20,8 @@ router.post('/upload', protect, upload.fields([
 
 router.put('/:id/answers', protect, updateAnswers);
 router.get('/', protect, getPapers);
+router.get('/:id/crops', protect, getPaperQuestionCrops);
+router.get('/:id/crops/:question/image', protect, getPaperQuestionCropImage);
 router.get('/:id', protect, getPaper);
 router.get('/:id/pdf/:type', protect, getPaperPDF);
 router.delete('/:id', protect, deletePaper);
