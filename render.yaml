@@ -1,5 +1,4 @@
-# The API hostname is assigned by Render. Replace the .invalid rewrite below
-# with that actual hostname before enabling the frontend for users.
+# Configuration for the existing SolveScript services in My Workspace.
 services:
   - type: web
     name: solvescript-api
@@ -51,7 +50,7 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://replace-with-actual-api-host.invalid/api/*
+        destination: https://solvescript-api.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html

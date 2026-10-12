@@ -142,8 +142,8 @@ Public library endpoints do not require a user. User uploads, attempts, drafts, 
 
 ## Deployment preparation (12 October 2026)
 
-- `DEPLOYMENT.md` documents the researched free-hosting choice and remaining setup. `render.yaml` defines a free Docker API and a separate free static frontend. **Not yet deployed:** the API rewrite deliberately targets `.invalid` until the actual Render API URL is assigned, and Google Search Console/uptime monitoring remain unconfigured.
-- `Dockerfile` includes Node 22, Python, Pillow and Poppler. Local secrets, uploads, and storage are excluded from the Docker build. The Linux image still needs a real Docker/Render build verification.
+- Live frontend: `https://solvescript.onrender.com` (`srv-db6acjg473hc73doogo0`); live free Docker API in Singapore: `https://solvescript-api.onrender.com` (`srv-db6acq7avr4c73ao5rfg`). The user confirmed Render workspace `My Workspace` (`tea-d1i9h2ali9vc73flu3l0`). Services were created directly, so `render.yaml` is a configuration reference, not an attached Blueprint. Dashboard rewrites proxy `/api/*` before the SPA fallback. `DEPLOYMENT.md` records remaining setup and checks.
+- `Dockerfile` includes Node 22, Python, Pillow and Poppler. Local secrets, uploads, and storage are excluded from the Docker build. The real Render Linux build succeeded, and production generated all 40 crops for a sample MCQ paper at 150 DPI.
 - The frontend defaults to same-origin `/api`; the static host must proxy that path before its SPA fallback. The homepage renders during the initial authentication check so backend sleep does not block it.
 - `npm run build` also runs `scripts/seo.mjs`. Set `SITE_URL` to the production HTTPS origin (or use Render's `RENDER_EXTERNAL_URL`) for canonical tags, website schema and sitemap generation. Private studio routes set `noindex`; API responses are private/no-store/noindex.
 - The public HF archive now includes 731 MCQ PDF assets under `mcq/caie`. `paperFileStore` restores missing MCQ files on demand using `HF_DATASET_REPO` and `MCQ_HF_PREFIX`, with original-source fallback. No bulk PDF download happens during folder browsing.

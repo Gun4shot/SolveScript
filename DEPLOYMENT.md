@@ -11,10 +11,20 @@ make the service unavailable. Do not upgrade resources to work around a limit.
 
 ## Current deployment status
 
-The deployment files are prepared; Render services have **not** been created.
-The blueprint deliberately uses a `.invalid` API rewrite destination until Render
-assigns the actual backend hostname. This avoids sending cookies or uploads to
-an unverified hostname. Replace it before opening the frontend to users.
+Both services are live in the confirmed Render workspace, **My Workspace**:
+
+- Frontend: https://solvescript.onrender.com (`srv-db6acjg473hc73doogo0`).
+- API: https://solvescript-api.onrender.com (`srv-db6acq7avr4c73ao5rfg`),
+  explicitly on the free plan in Singapore.
+
+They were created directly through the Render integration. `render.yaml` is a
+configuration reference, not an attached Blueprint; editing it alone does not
+update these services. Do not create a duplicate Blueprint to update them.
+The dashboard has the API rewrite first and the React fallback second.
+Verified: live homepage/robots/sitemap, same-origin API health and catalog,
+login POST validation, on-demand PDF download and 40 crops at 150 DPI in the
+Linux container. Search Console verification and uptime monitoring are being
+configured separately.
 
 The existing database has MCQ and written-paper metadata. Its local Windows PDF
 paths are not copied into the container. MCQ files are retrieved on demand from
