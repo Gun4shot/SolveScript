@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
+const { resolveLibraryPdf, resolvePrivatePdf } = require('./paperFileStore');
+
+const pendingCrops = new Map();
+let cropQueue = Promise.resolve();
 
 const cropRoot = path.resolve(__dirname, '..', 'storage', 'question-crops');
 const scriptPath = path.resolve(__dirname, '..', 'scripts', 'experiment_crop_questions.py');
@@ -68,8 +72,26 @@ async function ensureQuestionCrops(paper) {
 
   if (hasAllCrops) return existing;
 
-  await runCropper(paper);
-  return readManifest(paper._id);
+  const key = String(paper._id);
+  if (!pendingCrops.has(key)) {
+    // Limit concurrent memory use on the free container. Requests for the same
+    // paper share one job instead of launching competing subprocesses.
+    if (pendingCrops.size >= 8) {
+      const error = new Error('The crop queue is busy. Please try again shortly.');
+      error.statusCode = 503;
+      throw error;
+    }
+    const job = cropQueue.then(async () => {
+      const questionPaperPath = paper.userId
+        ? await resolvePrivatePdf(paper.questionPaperPath)
+        : await resolveLibraryPdf(paper);
+      await runCropper({ _id: paper._id, totalQuestions, questionPaperPath });
+      return readManifest(paper._id);
+    }).finally(() => pendingCrops.delete(key));
+    pendingCrops.set(key, job);
+    cropQueue = job.catch(() => {});
+  }
+  return pendingCrops.get(key);
 }
 
 function toCropDTO(paperId, manifest, resource = 'library') {

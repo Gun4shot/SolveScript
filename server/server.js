@@ -4,7 +4,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '.env'), override: true
 const insecureSecrets = [process.env.JWT_SECRET, process.env.JWT_REFRESH_SECRET].some((secret) => (
   !secret || secret.length < 32 || /replace-with|change-me|example/i.test(secret)
 ));
-if (process.env.NODE_ENV === 'production' && insecureSecrets) {
+if (process.env.NODE_ENV === 'production' && (insecureSecrets || process.env.JWT_SECRET === process.env.JWT_REFRESH_SECRET)) {
   throw new Error('Production requires distinct JWT_SECRET and JWT_REFRESH_SECRET values of at least 32 characters.');
 }
 const express = require('express');
@@ -24,6 +24,9 @@ const writtenLibraryRoutes = require('./routes/writtenLibrary');
 const writtenAttemptRoutes = require('./routes/writtenAttempts');
 
 const app = express();
+// Trust only the configured number of reverse-proxy hops, never every client.
+const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
+if (Number.isInteger(proxyHops) && proxyHops > 0) app.set('trust proxy', proxyHops);
 const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
@@ -73,6 +76,11 @@ const authLimiter = rateLimit({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
+  res.set('X-Robots-Tag', 'noindex');
+  next();
+});
 
 // Routes
 app.use('/api/auth', requireDatabase, authLimiter, authRoutes);
@@ -83,6 +91,9 @@ app.use('/api/written-library', writtenLibraryRoutes);
 app.use('/api/written-attempts', requireDatabase, writtenAttemptRoutes);
 
 // Health check
+// Process liveness is separate from database readiness so a DB interruption
+// doesn't cause a hosting platform to repeatedly restart a healthy process.
+app.get('/api/live', (req, res) => res.json({ status: 'ok' }));
 app.get('/api/health', (req, res) => {
   res.status(isDatabaseReady() ? 200 : 503).json({
     status: isDatabaseReady() ? 'ok' : 'database_unavailable',

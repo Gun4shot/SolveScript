@@ -23,7 +23,7 @@ const errorHandler = (err, req, res, next) => {
 
   // Multer file size error
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ message: 'File too large. Maximum size is 50MB.' });
+    return res.status(400).json({ message: `File too large. Maximum size is ${Number(process.env.MAX_UPLOAD_MB || 50)}MB per PDF.` });
   }
 
   // Multer file type error

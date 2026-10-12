@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -62,6 +62,7 @@ export const papersAPI = {
 
 // Seeded paper library API
 export const libraryAPI = {
+  getCatalog: () => api.get('/library/catalog'),
   getAll: (params) => api.get('/library', { params }),
   getOne: (id) => api.get(`/library/${id}`),
   getPDF: (id, type = 'question') => api.get(`/library/${id}/pdf/${type}`, { responseType: 'blob' }),

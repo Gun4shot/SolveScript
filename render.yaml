@@ -1,0 +1,67 @@
+# The API hostname is assigned by Render. Replace the .invalid rewrite below
+# with that actual hostname before enabling the frontend for users.
+services:
+  - type: web
+    name: solvescript-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/live
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: CLIENT_URL
+        fromService:
+          type: web
+          name: solvescript
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: HF_DATASET_REPO
+        value: Sidant/solvescript-caie-papers
+      - key: MCQ_HF_PREFIX
+        value: mcq/caie
+      - key: UPLOAD_STORAGE
+        value: gridfs
+      - key: MAX_UPLOAD_MB
+        value: "10"
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: CROP_DPI
+        value: "150"
+
+  - type: web
+    name: solvescript
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: VITE_API_URL
+        value: /api
+      - key: VITE_MAX_UPLOAD_MB
+        value: "10"
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://replace-with-actual-api-host.invalid/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /api/*
+        name: Cache-Control
+        value: private, no-store
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff

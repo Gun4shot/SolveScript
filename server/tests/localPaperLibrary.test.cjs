@@ -4,7 +4,19 @@ const fs = require('node:fs');
 const {
   getLocalPapers,
   getLocalPaper,
+  getLocalPaperFolders,
 } = require('../services/localPaperLibrary');
+
+test('folder catalog is available without parsing the paper collection', async () => {
+  const folders = await getLocalPaperFolders();
+  assert.ok(folders.length > 100);
+  assert.ok(folders.every((folder) => (
+    folder.subject
+    && /^20\d{2}$/.test(String(folder.year))
+    && folder.sessionCode
+    && folder.paperCount > 0
+  )));
+});
 
 test('downloaded collection covers every supported subject from 2015 onwards', async () => {
   const papers = await getLocalPapers();

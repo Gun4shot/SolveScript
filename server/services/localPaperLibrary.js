@@ -15,6 +15,7 @@ const subjects = {
 };
 const sessions = { m: 'March', s: 'May/June', w: 'October/November' };
 let catalogPromise;
+let folderCatalogPromise;
 const thresholdCache = new Map();
 const directories = (folder) =>
   fs.existsSync(folder)
@@ -127,7 +128,50 @@ function getLocalPapers() {
     });
   return catalogPromise;
 }
+
+async function buildFolderCatalog() {
+  const folders = [];
+  for (const [syllabusCode, subject] of Object.entries(subjects)) {
+    for (const year of directories(path.join(root, syllabusCode)).filter(
+      (value) => /^20\d{2}$/.test(value),
+    )) {
+      for (const [sessionCode, session] of Object.entries(sessions)) {
+        const sessionFolder = path.join(root, syllabusCode, year, sessionCode);
+        const paperCount = directories(sessionFolder).filter((component) => {
+          if (!/^1[123]$/.test(component)) return false;
+          const folder = path.join(sessionFolder, component);
+          return fs.existsSync(path.join(folder, 'question.pdf'))
+            && fs.existsSync(path.join(folder, 'mark_scheme.pdf'));
+        }).length;
+        if (!paperCount) continue;
+        folders.push({
+          subject,
+          syllabusCode,
+          year: Number(year),
+          session,
+          sessionCode,
+          paperCount,
+        });
+      }
+    }
+  }
+  return folders.sort(
+    (a, b) => a.subject.localeCompare(b.subject)
+      || b.year - a.year
+      || a.sessionCode.localeCompare(b.sessionCode),
+  );
+}
+
+function getLocalPaperFolders() {
+  if (!folderCatalogPromise) {
+    folderCatalogPromise = buildFolderCatalog().catch((error) => {
+      folderCatalogPromise = null;
+      throw error;
+    });
+  }
+  return folderCatalogPromise;
+}
 async function getLocalPaper(id) {
   return (await getLocalPapers()).find((paper) => paper._id === id) || null;
 }
-module.exports = { getLocalPapers, getLocalPaper };
+module.exports = { getLocalPapers, getLocalPaper, getLocalPaperFolders };

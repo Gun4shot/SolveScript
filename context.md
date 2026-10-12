@@ -140,6 +140,18 @@ Public library endpoints do not require a user. User uploads, attempts, drafts, 
 - `server/server.js` loads root `.env` first, then `server/.env` with override. This order is intentional.
 - In production, use HTTPS, a precise `CLIENT_URL`, matching Google callback URL, and distinct random JWT secrets of at least 32 characters.
 
+## Deployment preparation (12 October 2026)
+
+- `DEPLOYMENT.md` documents the researched free-hosting choice and remaining setup. `render.yaml` defines a free Docker API and a separate free static frontend. **Not yet deployed:** the API rewrite deliberately targets `.invalid` until the actual Render API URL is assigned, and Google Search Console/uptime monitoring remain unconfigured.
+- `Dockerfile` includes Node 22, Python, Pillow and Poppler. Local secrets, uploads, and storage are excluded from the Docker build. The Linux image still needs a real Docker/Render build verification.
+- The frontend defaults to same-origin `/api`; the static host must proxy that path before its SPA fallback. The homepage renders during the initial authentication check so backend sleep does not block it.
+- `npm run build` also runs `scripts/seo.mjs`. Set `SITE_URL` to the production HTTPS origin (or use Render's `RENDER_EXTERNAL_URL`) for canonical tags, website schema and sitemap generation. Private studio routes set `noindex`; API responses are private/no-store/noindex.
+- The public HF archive now includes 731 MCQ PDF assets under `mcq/caie`. `paperFileStore` restores missing MCQ files on demand using `HF_DATASET_REPO` and `MCQ_HF_PREFIX`, with original-source fallback. No bulk PDF download happens during folder browsing.
+- Set `UPLOAD_STORAGE=gridfs` on ephemeral hosts to store new private uploads in MongoDB. The existing owner checks remain required before retrieving files. Private files must never be added to the public HF archive. There were zero existing user-uploaded paper records at deployment audit, so no upload migration was needed.
+- The free deployment config caps each uploaded PDF at 10 MB; match `MAX_UPLOAD_MB` and frontend `VITE_MAX_UPLOAD_MB`. Atlas's total free storage budget includes these files and annotations. Crop generation is deduplicated and serialized, with deployment DPI 150.
+- `/api/live` checks the process; `/api/health` checks database readiness. Set `TRUST_PROXY_HOPS` only for the actual reverse-proxy topology. Render generates distinct JWT secrets; Google OAuth needs the final frontend proxy callback URL in both Render and Google configuration.
+- Storage verification: `node server/scripts/checkDeploymentStorage.cjs` tests recovery of one disposable GridFS PDF after its disk copies are removed, then cleans up that fixture.
+
 ## Run Locally
 
 Requirements: Node.js 18+ and, for account-backed work, local MongoDB or MongoDB Atlas access.

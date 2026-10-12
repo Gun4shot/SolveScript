@@ -17,6 +17,7 @@ const SUBJECTS = [
 const SESSIONS = ['Feb/March', 'May/June', 'Oct/Nov'];
 const YEARS = Array.from({ length: 20 }, (_, i) => String(2025 - i));
 const VARIANTS = ['1', '2', '3'];
+const MAX_UPLOAD_MB = Number(import.meta.env.VITE_MAX_UPLOAD_MB || 50);
 
 export default function UploadPage() {
   const { isAuthenticated } = useAuth();
@@ -50,6 +51,8 @@ export default function UploadPage() {
     onDrop: onDropQuestion,
     accept: { 'application/pdf': ['.pdf'] },
     maxFiles: 1,
+    maxSize: MAX_UPLOAD_MB * 1024 * 1024,
+    onDropRejected: () => toast.error(`Choose a PDF smaller than ${MAX_UPLOAD_MB}MB.`),
     multiple: false
   });
 
@@ -57,6 +60,8 @@ export default function UploadPage() {
     onDrop: onDropMarking,
     accept: { 'application/pdf': ['.pdf'] },
     maxFiles: 1,
+    maxSize: MAX_UPLOAD_MB * 1024 * 1024,
+    onDropRejected: () => toast.error(`Choose a PDF smaller than ${MAX_UPLOAD_MB}MB.`),
     multiple: false
   });
 
@@ -193,7 +198,7 @@ export default function UploadPage() {
                       <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
                     <p>Drop PDF here or <span className="text-accent">browse</span></p>
-                    <p className="dropzone-hint">Question paper PDF (max 50MB)</p>
+                    <p className="dropzone-hint">Question paper PDF (max {MAX_UPLOAD_MB}MB)</p>
                   </div>
                 )}
               </div>
@@ -225,7 +230,7 @@ export default function UploadPage() {
                       <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
                     <p>Drop PDF here or <span className="text-accent">browse</span></p>
-                    <p className="dropzone-hint">Mark scheme PDF (max 50MB)</p>
+                    <p className="dropzone-hint">Mark scheme PDF (max {MAX_UPLOAD_MB}MB)</p>
                   </div>
                 )}
               </div>

@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Document, Page, pdfjs } from 'react-pdf';
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,13 +21,10 @@ import DrawingToolbar from '../../components/DrawingToolbar';
 import StudioDialog from '../../components/studio/StudioDialog';
 import PaperReport from './PaperReport';
 import { buildReport, formatDuration } from './attemptReport';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { accountKey, readSaved, saveLocalAttempt } from '../../components/studio/studyData';
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
 import './SolverPage.css';
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+const PdfPaperPage = lazy(() => import('./PdfPaperPage'));
 
 const OPTIONS = ['A', 'B', 'C', 'D'];
 const ONGOING_TESTS_KEY = 'solvescript:ongoingTests';
@@ -62,6 +58,8 @@ export default function SolverPage() {
 
   const [paper, setPaper] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState('');
   const [loading, setLoading] = useState(true);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -101,6 +99,7 @@ export default function SolverPage() {
   const annotationsMapRef = useRef({});
   const historyMapRef = useRef({});
   const restoringHistoryRef = useRef(false);
+  const annotationLoadVersionRef = useRef(0);
   const currentCanvasKeyRef = useRef('page-1');
   const questionStartRef = useRef(null);
   const resizeStartRef = useRef(null);
@@ -117,6 +116,12 @@ export default function SolverPage() {
   const wheelPointRef = useRef(null);
   const cloudSaveTimerRef = useRef(null);
   const cloudDraftIdRef = useRef(null);
+  const cropRequestRef = useRef(null);
+  const pdfRequestRef = useRef(null);
+  const pdfObjectUrlRef = useRef(null);
+  const pdfUrlRef = useRef(null);
+  const libraryDetailsRequestRef = useRef(null);
+  const libraryDetailsLoadedRef = useRef(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [canvasReady, setCanvasReady] = useState(0);
 
@@ -250,11 +255,24 @@ export default function SolverPage() {
   const loadAnnotations = useCallback((canvasKey) => {
     const canvas = fabricRef.current;
     if (!canvas) return;
+    const version = ++annotationLoadVersionRef.current;
+    const isCurrentLoad = () => (
+      version === annotationLoadVersionRef.current
+      && fabricRef.current === canvas
+      && currentCanvasKeyRef.current === canvasKey
+      && !canvas.disposed
+    );
 
     const saved = annotationsMapRef.current[canvasKey];
     if (saved) {
       void canvas.loadFromJSON(saved).then(() => {
-        if (!canvas.disposed) canvas.renderAll();
+        if (!isCurrentLoad()) return;
+        canvas.renderAll();
+        createHistoryEntry(canvasKey, canvas);
+      }).catch(() => {
+        if (!isCurrentLoad()) return;
+        canvas.clear();
+        canvas.renderAll();
         createHistoryEntry(canvasKey, canvas);
       });
       return;
@@ -274,6 +292,78 @@ export default function SolverPage() {
     if (canvasHostRef.current) {
       canvasHostRef.current.replaceChildren();
     }
+  }, []);
+
+  const clearQuestionPaper = useCallback(() => {
+    if (pdfObjectUrlRef.current) URL.revokeObjectURL(pdfObjectUrlRef.current);
+    pdfObjectUrlRef.current = null;
+    pdfRequestRef.current = null;
+    pdfUrlRef.current = null;
+    setPdfUrl(null);
+    setPdfLoading(false);
+    setPdfError('');
+  }, []);
+
+  const loadQuestionPaper = useCallback(async () => {
+    if (pdfUrlRef.current || paperId.startsWith('guest-')) return pdfUrlRef.current;
+    if (pdfRequestRef.current?.paperId === paperId) return pdfRequestRef.current.promise;
+
+    setPdfLoading(true);
+    setPdfError('');
+    const request = (isLibraryPaper
+      ? libraryAPI.getPDF(paperId, 'question')
+      : papersAPI.getPDF(paperId, 'question'))
+      .then((response) => {
+        if (pdfRequestRef.current?.promise !== request) return null;
+        const nextUrl = URL.createObjectURL(response.data);
+        pdfObjectUrlRef.current = nextUrl;
+        pdfUrlRef.current = nextUrl;
+        setPdfUrl(nextUrl);
+        return nextUrl;
+      })
+      .catch((error) => {
+        if (pdfRequestRef.current?.promise === request) {
+          setPdfError('The question paper could not be loaded. Please try again.');
+        }
+        throw error;
+      })
+      .finally(() => {
+        if (pdfRequestRef.current?.promise === request) {
+          pdfRequestRef.current = null;
+          setPdfLoading(false);
+        }
+      });
+    pdfRequestRef.current = { paperId, promise: request };
+    return request;
+  }, [isLibraryPaper, paperId]);
+
+  const loadLibraryDetails = useCallback(async () => {
+    if (!isLibraryPaper || libraryDetailsLoadedRef.current) return null;
+    if (libraryDetailsRequestRef.current?.paperId === paperId) {
+      return libraryDetailsRequestRef.current.promise;
+    }
+
+    const request = libraryAPI.getOne(paperId)
+      .then((response) => {
+        if (libraryDetailsRequestRef.current?.promise !== request) return null;
+        const detailedPaper = response.data.paper;
+        libraryDetailsLoadedRef.current = true;
+        setPaper((current) => ({ ...current, ...detailedPaper, isLibrary: true }));
+        setCorrectAnswers(detailedPaper.answers || {});
+        setDiscountedQuestions(detailedPaper.discountedQuestions || []);
+        return detailedPaper;
+      })
+      .finally(() => {
+        if (libraryDetailsRequestRef.current?.promise === request) {
+          libraryDetailsRequestRef.current = null;
+        }
+      });
+    libraryDetailsRequestRef.current = { paperId, promise: request };
+    return request;
+  }, [isLibraryPaper, paperId]);
+
+  useEffect(() => () => {
+    if (pdfObjectUrlRef.current) URL.revokeObjectURL(pdfObjectUrlRef.current);
   }, []);
 
   const scoreAttempt = useCallback(() => {
@@ -381,12 +471,17 @@ export default function SolverPage() {
   useEffect(() => {
     const loadPaper = async () => {
       try {
+        clearQuestionPaper();
+        libraryDetailsLoadedRef.current = false;
+        libraryDetailsRequestRef.current = null;
         setLayoutMode('full');
         setCropData(null);
         setCropError('');
 
         let draft = readSaved(draftKey, null);
-        if (isAuthenticated && !paperId.startsWith('guest-')) {
+        // A new session has everything it needs locally. Do not hold its start dialog
+        // behind a round trip for a draft that usually does not exist.
+        if (draft && isAuthenticated && !paperId.startsWith('guest-')) {
           try {
             const cloud = await attemptsAPI.getDraft(paperId, isLibraryPaper ? 'library' : 'upload');
             if (cloud.data.attempt) {
@@ -425,25 +520,26 @@ export default function SolverPage() {
           setPaper({ title: guestData.title, isGuest: true, subject: 'Guest Paper', totalQuestions: 40 });
           setCorrectAnswers({});
           setPdfUrl(guestData.questionPaperBlob);
+          pdfObjectUrlRef.current = null;
+          pdfUrlRef.current = guestData.questionPaperBlob;
         } else if (isLibraryPaper) {
-          const [paperRes, pdfRes] = await Promise.all([
-            libraryAPI.getOne(paperId),
-            libraryAPI.getPDF(paperId, 'question'),
-          ]);
-          setPaper({ ...paperRes.data.paper, isLibrary: true });
-          setCorrectAnswers(paperRes.data.paper.answers || {});
-          setDiscountedQuestions(paperRes.data.paper.discountedQuestions || []);
-          setPdfUrl(URL.createObjectURL(pdfRes.data));
+          const previewPaper = location.state?.paper;
+          if (previewPaper?.id === paperId) {
+            setPaper({ ...previewPaper, isLibrary: true });
+            setDiscountedQuestions(previewPaper.discountedQuestions || []);
+          } else {
+            await loadLibraryDetails();
+          }
         } else {
           const paperRes = await papersAPI.getOne(paperId);
-          const pdfRes = await papersAPI.getPDF(paperId, 'question');
           setPaper(paperRes.data.paper);
           setCorrectAnswers(paperRes.data.paper.answers || {});
-          setPdfUrl(URL.createObjectURL(pdfRes.data));
         }
 
-        const now = Date.now();
         if (draft) {
+          if (isLibraryPaper) await loadLibraryDetails();
+          if (!paperId.startsWith('guest-')) await loadQuestionPaper();
+          const now = Date.now();
           questionStartRef.current = now;
           setStartTime(now - (draft.elapsed || 0) * 1000);
           deadlineRef.current = now + (draft.timeRemaining ?? mergedConfig.customTime * 60) * 1000;
@@ -461,7 +557,7 @@ export default function SolverPage() {
     };
 
     loadPaper();
-  }, [draftKey, isAuthenticated, isLibraryPaper, navigate, paperId, toast]);
+  }, [clearQuestionPaper, draftKey, isAuthenticated, isLibraryPaper, loadLibraryDetails, loadQuestionPaper, location.state, navigate, paperId, toast]);
 
   useEffect(() => {
     if (!isRunning || submitted || !startTime) return undefined;
@@ -566,7 +662,7 @@ export default function SolverPage() {
         disposeFabricCanvas();
       }
     };
-  }, [disposeFabricCanvas, layoutMode, loadAnnotations, pdfUrl, updateCanvasSize]);
+  }, [currentCanvasKey, disposeFabricCanvas, loadAnnotations, pdfUrl, updateCanvasSize]);
 
   useEffect(() => {
     const stage = annotationStageRef.current;
@@ -704,54 +800,47 @@ export default function SolverPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (layoutMode !== 'crop' || !activeCrop) return undefined;
-    const timeout = window.setTimeout(() => {
-      loadAnnotations(`question-${currentQuestion}`);
-      updateCanvasSize();
-    }, 80);
-    return () => window.clearTimeout(timeout);
-  }, [activeCrop, currentQuestion, layoutMode, loadAnnotations, updateCanvasSize]);
-
   const ensureCropData = useCallback(async () => {
     if (paperId.startsWith('guest-')) {
       setCropError('Focused questions are available after you save a paper.');
       return null;
     }
     if (cropData) return cropData;
+    if (cropRequestRef.current?.paperId === paperId) return cropRequestRef.current.promise;
 
     setCropLoading(true);
     setCropError('');
-    try {
-      const res = isLibraryPaper
-        ? await libraryAPI.getCrops(paperId)
-        : await papersAPI.getCrops(paperId);
-      setCropData(res.data);
-      return res.data;
-    } catch {
-      setCropError('Could not prepare cropped questions.');
-      toast.error('Could not prepare cropped questions');
-      return null;
-    } finally {
-      setCropLoading(false);
-    }
+    const request = (isLibraryPaper
+      ? libraryAPI.getCrops(paperId)
+      : papersAPI.getCrops(paperId))
+      .then((res) => {
+        if (cropRequestRef.current?.promise === request) setCropData(res.data);
+        return res.data;
+      })
+      .catch(() => {
+        if (cropRequestRef.current?.promise === request) {
+          setCropError('Could not prepare cropped questions.');
+          toast.error('Could not prepare cropped questions');
+        }
+        return null;
+      })
+      .finally(() => {
+        if (cropRequestRef.current?.promise === request) {
+          cropRequestRef.current = null;
+          setCropLoading(false);
+        }
+      });
+    cropRequestRef.current = { paperId, promise: request };
+    return request;
   }, [cropData, isLibraryPaper, paperId, toast]);
 
   const handleLayoutModeChange = async (nextMode) => {
     if (nextMode === layoutMode) return;
-    if (nextMode === 'crop') {
-      const data = await ensureCropData();
-      if (!data) return;
-    }
-
+    const cropRequest = nextMode === 'crop' ? ensureCropData() : null;
     saveCurrentAnnotations();
     disposeFabricCanvas();
     setLayoutMode(nextMode);
-
-    window.setTimeout(() => {
-      loadAnnotations(nextMode === 'crop' ? `question-${currentQuestion}` : `page-${currentPage}`);
-      updateCanvasSize();
-    }, 120);
+    if (cropRequest) await cropRequest;
   };
 
   useEffect(() => {
@@ -765,11 +854,8 @@ export default function SolverPage() {
   const handlePageChange = (newPage) => {
     if (newPage < 1 || newPage > numPages) return;
     saveCurrentAnnotations();
+    disposeFabricCanvas();
     setCurrentPage(newPage);
-    window.setTimeout(() => {
-      loadAnnotations(`page-${newPage}`);
-      updateCanvasSize();
-    }, 100);
   };
 
   const handleQuestionFocus = (q) => {
@@ -784,15 +870,11 @@ export default function SolverPage() {
       questionStartRef.current = now;
     }
 
-    if (layoutMode === 'crop') saveCurrentAnnotations();
-    setCurrentQuestion(q);
-
     if (layoutMode === 'crop') {
-      window.setTimeout(() => {
-        loadAnnotations(`question-${q}`);
-        updateCanvasSize();
-      }, 100);
+      saveCurrentAnnotations();
+      disposeFabricCanvas();
     }
+    setCurrentQuestion(q);
   };
 
   const addShape = async (type) => {
@@ -914,6 +996,29 @@ export default function SolverPage() {
   const zoomOut = () => setZoomFromPoint((targetScaleRef.current || scaleRef.current) / 1.12);
   const resetZoom = () => setZoomFromPoint(1);
 
+  const beginPaper = async (event) => {
+    event.preventDefault();
+    const minutes = Number(config.customTime);
+    if (config.mode === 'exam' && (!Number.isInteger(minutes) || minutes < 1 || minutes > 360)) return;
+
+    try {
+      await Promise.all([
+        loadQuestionPaper(),
+        loadLibraryDetails(),
+      ]);
+    } catch {
+      return;
+    }
+
+    const now = Date.now();
+    questionStartRef.current = now;
+    deadlineRef.current = now + minutes * 60000;
+    setTimeRemaining(minutes * 60);
+    setStartTime(now);
+    setIsRunning(true);
+    setSetupOpen(false);
+  };
+
   if (loading) {
     return (
       <div className="solver-loading">
@@ -1002,28 +1107,23 @@ export default function SolverPage() {
             >
               <div className="annotation-stage" ref={annotationStageRef}>
               {layoutMode === 'full' && pdfUrl && (
-                <>
-                  <Document
+                <Suspense fallback={<div className="pdf-loading"><div className="spinner" /></div>}>
+                  <PdfPaperPage
                     file={pdfUrl}
+                    pageNumber={currentPage}
                     onLoadSuccess={({ numPages: pages }) => setNumPages(pages)}
-                    loading={<div className="pdf-loading"><div className="spinner" /></div>}
-                  >
-                    <Page
-                      pageNumber={currentPage}
-                      scale={1}
-                      renderAnnotationLayer={false}
-                      renderTextLayer={false}
-                      onRenderSuccess={() => window.setTimeout(updateCanvasSize, 50)}
-                    />
-                  </Document>
-                </>
+                    onRenderSuccess={() => window.setTimeout(updateCanvasSize, 50)}
+                  />
+                </Suspense>
               )}
               {layoutMode === 'crop' && (
                 <>
                   {cropLoading && (
-                    <div className="crop-state">
+                    <div className="crop-state crop-state-loading" role="status" aria-live="polite">
                       <div className="spinner" />
-                      <span>Preparing questions...</span>
+                      <b>Creating focused question views</b>
+                      <span>Finding question boundaries in this paper. This can take a minute the first time.</span>
+                      <div className="crop-progress" aria-hidden="true"><i /></div>
                     </div>
                   )}
                   {!cropLoading && cropError && (
@@ -1246,22 +1346,17 @@ export default function SolverPage() {
 
       {setupOpen && <StudioDialog title="Start paper" onClose={() => navigate(isLibraryPaper ? '/library' : '/dashboard')} className="paper-setup">
         <span className="small-label">BEFORE YOU BEGIN</span><h2>Make this session yours.</h2><p>{paper?.title}</p>
-        <form onSubmit={(event) => {
-          event.preventDefault();
-          const minutes = Number(config.customTime);
-          if (config.mode === 'exam' && (!Number.isInteger(minutes) || minutes < 1 || minutes > 360)) return;
-          const now = Date.now();
-          questionStartRef.current = now;
-          deadlineRef.current = now + minutes * 60000;
-          setTimeRemaining(minutes * 60);
-          setStartTime(now); setIsRunning(true); setSetupOpen(false);
-        }}>
+        <form onSubmit={beginPaper}>
           <fieldset className="setup-modes"><legend>Session mode</legend>
             <label><input type="radio" name="mode" value="casual" checked={config.mode === 'casual'} onChange={() => setConfig((value) => ({ ...value, mode: 'casual', showInstantFeedback: true }))} /><span><b>Casual practice</b><small>At your pace, with instant answer feedback.</small></span></label>
             <label><input type="radio" name="mode" value="exam" checked={config.mode === 'exam'} onChange={() => setConfig((value) => ({ ...value, mode: 'exam', showInstantFeedback: false }))} /><span><b>Timed exam</b><small>A countdown, with answers revealed at the end.</small></span></label>
           </fieldset>
           {config.mode === 'exam' && <label className="setup-duration">Exam duration <span><input type="number" min="1" max="360" step="1" required value={config.customTime} onChange={(event) => setConfig((value) => ({ ...value, customTime: event.target.value }))} /> minutes</span><small>1 to 360 minutes</small></label>}
-          <button type="submit" className="btn btn-primary">{config.mode === 'exam' ? 'Start exam' : 'Start practice'} <ArrowRight size={17} /></button>
+          {pdfError && <p className="setup-load-error" role="alert">{pdfError}</p>}
+          <button type="submit" className="btn btn-primary" disabled={pdfLoading}>
+            {pdfLoading ? 'Loading paper…' : config.mode === 'exam' ? 'Start exam' : 'Start practice'}
+            {!pdfLoading && <ArrowRight size={17} />}
+          </button>
         </form>
       </StudioDialog>}
       {submitConfirmOpen && <StudioDialog title="Submit paper" onClose={() => setSubmitConfirmOpen(false)} className="paper-setup">

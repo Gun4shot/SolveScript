@@ -3,8 +3,10 @@ const path = require('path');
 const mongoose = require('mongoose');
 const PaperLibrary = require('../models/PaperLibrary');
 const { isDatabaseReady } = require('../config/db');
-const { getLocalPapers, getLocalPaper } = require('../services/localPaperLibrary');
+const { getLocalPapers, getLocalPaper, getLocalPaperFolders } = require('../services/localPaperLibrary');
 const { ensureQuestionCrops, getCropFile, toCropDTO } = require('../services/questionCropper');
+const { resolveComponentThreshold } = require('../services/componentThreshold');
+const { resolveLibraryPdf } = require('../services/paperFileStore');
 const findPaper = (id) => {
   const normalizedId = String(id);
   if (normalizedId.startsWith('local-')) return getLocalPaper(normalizedId);
@@ -12,7 +14,8 @@ const findPaper = (id) => {
   return PaperLibrary.findOne({ _id: normalizedId, status: 'ready' });
 };
 
-function toPaperDTO(paper, includeAnswers = false) {
+async function toPaperDTO(paper, includeAnswers = false) {
+  const componentThreshold = await resolveComponentThreshold(paper);
   const dto = {
     id: paper._id,
     examBoard: paper.examBoard,
@@ -28,8 +31,8 @@ function toPaperDTO(paper, includeAnswers = false) {
     title: paper.title,
     totalQuestions: paper.totalQuestions,
     discountedQuestions: paper.discountedQuestions || [],
-    componentThreshold: paper.componentThreshold || null,
-    difficulty: paper.difficulty || paper.componentThreshold?.difficulty || 'unknown',
+    componentThreshold,
+    difficulty: componentThreshold?.difficulty || paper.difficulty || 'unknown',
     status: paper.status
   };
 
@@ -45,7 +48,7 @@ exports.getLibraryPapers = async (req, res, next) => {
     const { subject, syllabusCode, year, sessionCode, difficulty } = req.query;
     if (!isDatabaseReady()) {
       const papers = (await getLocalPapers()).filter((paper) => (!subject || paper.subject === subject) && (!syllabusCode || paper.syllabusCode === syllabusCode) && (!year || paper.year === Number(year)) && (!sessionCode || paper.sessionCode === sessionCode) && (!difficulty || (paper.difficulty || 'unknown') === difficulty));
-      return res.json({ papers: papers.map((paper) => toPaperDTO(paper)), source: 'local' });
+      return res.json({ papers: await Promise.all(papers.map((paper) => toPaperDTO(paper))), source: 'local' });
     }
     const query = { status: 'ready' };
 
@@ -60,7 +63,47 @@ exports.getLibraryPapers = async (req, res, next) => {
       .select('-questionPaperPath -markingSchemePath -answers')
       .lean();
 
-    res.json({ papers: papers.map((paper) => toPaperDTO(paper)) });
+    res.json({ papers: await Promise.all(papers.map((paper) => toPaperDTO(paper))) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getLibraryCatalog = async (req, res, next) => {
+  try {
+    if (!isDatabaseReady()) {
+      return res.json({ folders: await getLocalPaperFolders(), source: 'local' });
+    }
+
+    const folders = await PaperLibrary.aggregate([
+      { $match: { status: 'ready' } },
+      {
+        $group: {
+          _id: {
+            subject: '$subject',
+            syllabusCode: '$syllabusCode',
+            year: '$year',
+            session: '$session',
+            sessionCode: '$sessionCode',
+          },
+          paperCount: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          subject: '$_id.subject',
+          syllabusCode: '$_id.syllabusCode',
+          year: '$_id.year',
+          session: '$_id.session',
+          sessionCode: '$_id.sessionCode',
+          paperCount: 1,
+        },
+      },
+      { $sort: { subject: 1, year: -1, sessionCode: 1 } },
+    ]);
+
+    res.json({ folders });
   } catch (error) {
     next(error);
   }
@@ -73,7 +116,7 @@ exports.getLibraryPaper = async (req, res, next) => {
       return res.status(404).json({ message: 'Paper not found' });
     }
 
-    res.json({ paper: toPaperDTO(paper, true) });
+    res.json({ paper: await toPaperDTO(paper, true) });
   } catch (error) {
     next(error);
   }
@@ -86,9 +129,7 @@ exports.getLibraryPDF = async (req, res, next) => {
       return res.status(404).json({ message: 'Paper not found' });
     }
 
-    const filePath = req.params.type === 'mark-scheme'
-      ? paper.markingSchemePath
-      : paper.questionPaperPath;
+    const filePath = await resolveLibraryPdf(paper, req.params.type === 'mark-scheme' ? 'mark-scheme' : 'question');
 
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: 'File not found' });

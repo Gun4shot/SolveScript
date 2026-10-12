@@ -12,6 +12,7 @@ import { ToastProvider } from './context/ToastContext';
 import Header from './components/Header';
 import HomePage from './pages/HomePage/HomePage';
 import StudioShell from './components/studio/StudioShell';
+import RouteMetadata from './components/RouteMetadata';
 
 const LoginPage = lazy(() => import('./pages/Auth/LoginPage'));
 const UploadPage = lazy(() => import('./pages/Upload/UploadPage'));
@@ -52,7 +53,7 @@ function AppRoutes() {
   const isHome = location.pathname === '/';
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/register';
 
-  if (loading) {
+  if (loading && !isHome) {
     return (
       <div
         style={{
@@ -128,6 +129,7 @@ function ResultRoute() {
 export default function App() {
   return (
     <BrowserRouter>
+      <RouteMetadata />
       <AuthProvider>
         <ToastProvider>
           <AppRoutes />

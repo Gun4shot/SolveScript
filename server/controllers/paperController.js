@@ -3,6 +3,7 @@ const { parseMarkingScheme } = require('../services/markingSchemeParser');
 const { ensureQuestionCrops, getCropFile, toCropDTO } = require('../services/questionCropper');
 const path = require('path');
 const fs = require('fs');
+const { storePrivatePdf, resolvePrivatePdf, deletePrivatePdf } = require('../services/paperFileStore');
 
 async function hasPdfSignature(filePath) {
   const handle = await fs.promises.open(filePath, 'r');
@@ -22,8 +23,11 @@ async function removeFiles(files) {
 // @desc    Upload paper and marking scheme, parse answers
 // @route   POST /api/papers/upload
 exports.uploadPaper = async (req, res, next) => {
+  const storedReferences = [];
+  let saved = false;
   try {
     if (!req.files || !req.files.questionPaper || !req.files.markingScheme) {
+      await removeFiles(Object.values(req.files || {}).flat());
       return res.status(400).json({ message: 'Both question paper and marking scheme PDFs are required' });
     }
 
@@ -44,6 +48,11 @@ exports.uploadPaper = async (req, res, next) => {
     // Parse marking scheme
     const parseResult = await parseMarkingScheme(markingSchemeFile.path);
 
+    const questionReference = await storePrivatePdf(questionPaperFile, req.user._id);
+    storedReferences.push(questionReference);
+    const schemeReference = await storePrivatePdf(markingSchemeFile, req.user._id);
+    storedReferences.push(schemeReference);
+
     // Create paper record
     const paper = await Paper.create({
       userId: req.user._id,
@@ -53,11 +62,13 @@ exports.uploadPaper = async (req, res, next) => {
       session: req.body.session || '',
       year: req.body.year || '',
       variant: req.body.variant || '',
-      questionPaperPath: questionPaperFile.path,
-      markingSchemePath: markingSchemeFile.path,
+      questionPaperPath: questionReference,
+      markingSchemePath: schemeReference,
       answers: parseResult.answers,
       totalQuestions: 40
     });
+    saved = true;
+    if (process.env.UPLOAD_STORAGE === 'gridfs') await removeFiles([questionPaperFile, markingSchemeFile]);
 
     res.status(201).json({
       paper: {
@@ -78,6 +89,10 @@ exports.uploadPaper = async (req, res, next) => {
       }
     });
   } catch (error) {
+    if (!saved) {
+      await Promise.allSettled(storedReferences.map(deletePrivatePdf));
+      await removeFiles(Object.values(req.files || {}).flat());
+    }
     next(error);
   }
 };
@@ -180,9 +195,9 @@ exports.getPaperPDF = async (req, res, next) => {
       return res.status(404).json({ message: 'Paper not found' });
     }
 
-    const filePath = req.params.type === 'question' 
-      ? paper.questionPaperPath 
-      : paper.markingSchemePath;
+    const filePath = await resolvePrivatePdf(req.params.type === 'question'
+      ? paper.questionPaperPath
+      : paper.markingSchemePath);
 
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: 'File not found' });
@@ -249,13 +264,8 @@ exports.deletePaper = async (req, res, next) => {
       return res.status(404).json({ message: 'Paper not found' });
     }
 
-    // Delete files
-    try {
-      if (fs.existsSync(paper.questionPaperPath)) fs.unlinkSync(paper.questionPaperPath);
-      if (fs.existsSync(paper.markingSchemePath)) fs.unlinkSync(paper.markingSchemePath);
-    } catch (e) {
-      console.error('Error deleting files:', e.message);
-    }
+    await deletePrivatePdf(paper.questionPaperPath);
+    await deletePrivatePdf(paper.markingSchemePath);
 
     await paper.deleteOne();
     res.json({ message: 'Paper deleted successfully' });

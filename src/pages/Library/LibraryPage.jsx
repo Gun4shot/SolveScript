@@ -71,12 +71,34 @@ function groupPapers(papers) {
     }));
 }
 
+function foldersFromPapers(papers) {
+  const folders = new Map();
+  papers.forEach((paper) => {
+    const key = [paper.subject, paper.syllabusCode, paper.year, paper.session, paper.sessionCode].join(':');
+    const current = folders.get(key);
+    if (current) {
+      current.paperCount += 1;
+      return;
+    }
+    folders.set(key, {
+      subject: paper.subject,
+      syllabusCode: paper.syllabusCode,
+      year: paper.year,
+      session: paper.session,
+      sessionCode: paper.sessionCode,
+      paperCount: 1,
+    });
+  });
+  return [...folders.values()];
+}
+
 export default function LibraryPage() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const viewStateKey = `solvescript:library-view:${accountKey(user)}`;
   const initialView = readSaved(viewStateKey, {});
   const requestedSubject = searchParams.get('subject');
+  const [folders, setFolders] = useState([]);
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -96,8 +118,14 @@ export default function LibraryPage() {
     let ignore = false;
     (async () => {
       try {
-        const res = await libraryAPI.getAll();
-        if (!ignore) setPapers(res.data.papers || []);
+        try {
+          const res = await libraryAPI.getCatalog();
+          if (!ignore) setFolders(res.data.folders || []);
+        } catch {
+          // Keep the library usable while an older deployed backend is being restarted.
+          const res = await libraryAPI.getAll();
+          if (!ignore) setFolders(foldersFromPapers(res.data.papers || []));
+        }
       } catch (error) {
         if (!ignore) {
           setLoadError(
@@ -116,32 +144,68 @@ export default function LibraryPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (subject === ALL || year === ALL || session === ALL) {
+      return undefined;
+    }
+
+    const folder = folders.find((item) => (
+      item.subject === subject
+      && item.year === Number(year)
+      && item.session === session
+    ));
+    if (!folder) return undefined;
+
+    let ignore = false;
+    libraryAPI.getAll({ subject, year, sessionCode: folder.sessionCode })
+      .then((res) => {
+        if (!ignore) {
+          setLoadError('');
+          setPapers(res.data.papers || []);
+        }
+      })
+      .catch(() => {
+        if (!ignore) setLoadError('The papers in this folder could not be reached.');
+      })
+
+    return () => {
+      ignore = true;
+    };
+  }, [folders, session, subject, year]);
+
   const subjects = useMemo(
     () => [
       ALL,
-      ...new Set(papers.map((paper) => paper.subject).filter(Boolean)),
+      ...new Set(folders.map((folder) => folder.subject).filter(Boolean)),
     ],
-    [papers],
+    [folders],
   );
   const years = useMemo(
     () =>
-      [ALL, ...new Set(papers.map((paper) => paper.year).filter(Boolean))].sort(
+      [ALL, ...new Set(folders
+        .filter((folder) => subject === ALL || folder.subject === subject)
+        .map((folder) => folder.year)
+        .filter(Boolean))].sort(
         (a, b) => {
           if (a === ALL) return -1;
           if (b === ALL) return 1;
           return b - a;
         },
       ),
-    [papers],
+    [folders, subject],
   );
   const sessions = useMemo(
     () => [
       ALL,
       ...SESSION_ORDER.filter((item) =>
-        papers.some((paper) => paper.session === item),
+        folders.some((folder) => (
+          folder.session === item
+          && (subject === ALL || folder.subject === subject)
+          && (year === ALL || folder.year === Number(year))
+        )),
       ),
     ],
-    [papers],
+    [folders, subject, year],
   );
   const subjectStats = useMemo(
     () =>
@@ -149,12 +213,20 @@ export default function LibraryPage() {
         .filter((item) => item !== ALL)
         .map((item) => ({
           name: item,
-          count: papers.filter((paper) => paper.subject === item).length,
+          count: folders
+            .filter((folder) => folder.subject === item)
+            .reduce((total, folder) => total + folder.paperCount, 0),
         })),
-    [papers, subjects],
+    [folders, subjects],
   );
+  const catalogPaperCount = useMemo(
+    () => folders.reduce((total, folder) => total + folder.paperCount, 0),
+    [folders],
+  );
+  const hasSelectedSession = subject !== ALL && year !== ALL && session !== ALL;
 
   const visiblePapers = useMemo(() => {
+    if (!hasSelectedSession) return [];
     const needle = query.trim().toLowerCase();
     return papers.filter((paper) => {
       const matchesQuery =
@@ -172,24 +244,19 @@ export default function LibraryPage() {
         difficulty === ALL || (paper.difficulty || 'unknown') === difficulty;
       return matchesQuery && matchesSubject && matchesYear && matchesSession && matchesDifficulty;
     });
-  }, [difficulty, papers, query, session, subject, year]);
+  }, [difficulty, hasSelectedSession, papers, query, session, subject, year]);
   const folderGroups = useMemo(
     () => groupPapers(visiblePapers),
     [visiblePapers],
   );
-  const selectedSubjectPapers = useMemo(
-    () =>
-      subject === ALL
-        ? papers
-        : papers.filter((paper) => paper.subject === subject),
-    [papers, subject],
-  );
   const selectedYears = useMemo(
     () =>
-      [...new Set(selectedSubjectPapers.map((paper) => paper.year))].sort(
+      [...new Set(folders
+        .filter((folder) => subject === ALL || folder.subject === subject)
+        .map((folder) => folder.year))].sort(
         (a, b) => b - a,
       ),
-    [selectedSubjectPapers],
+    [folders, subject],
   );
   const resetFilters = () => {
     setQuery('');
@@ -215,7 +282,9 @@ export default function LibraryPage() {
               <h1>Your next blank page.</h1>
               <p>
                 {loadError ||
-                  `${visiblePapers.length} of ${papers.length} ready Paper 1 MCQs, arranged from 2015 onward`}
+                  (hasSelectedSession
+                    ? `${visiblePapers.length} of ${papers.length} papers in this folder`
+                    : `${catalogPaperCount} ready Paper 1 MCQs, arranged from 2015 onward`)}
               </p>
             </div>
             <img
@@ -305,7 +374,7 @@ export default function LibraryPage() {
                 )}
                 CAIE AS/A Level
               </span>
-              <small>{papers.length}</small>
+              <small>{catalogPaperCount}</small>
             </button>
 
             {subjectStats.map((item) => (
@@ -336,8 +405,12 @@ export default function LibraryPage() {
               <Branch open={expandedSubject === item.name && subject === item.name}>
                 {selectedYears.map((yearValue) => {
                   const sessionsForYear = SESSION_ORDER.filter((item) =>
-                    selectedSubjectPapers.some(
-                      (paper) => paper.year === yearValue && paper.session === item,
+                    folders.some(
+                      (folder) => (
+                        folder.year === yearValue
+                        && folder.session === item
+                        && (subject === ALL || folder.subject === subject)
+                      ),
                     ),
                   );
                   return (
@@ -363,9 +436,12 @@ export default function LibraryPage() {
                     </span>
                     <small>
                       {
-                        selectedSubjectPapers.filter(
-                          (paper) => paper.year === yearValue,
-                        ).length
+                        folders.filter(
+                          (folder) => (
+                            folder.year === yearValue
+                            && (subject === ALL || folder.subject === subject)
+                          ),
+                        ).reduce((total, folder) => total + folder.paperCount, 0)
                       }
                     </small>
                   </button>
@@ -388,11 +464,12 @@ export default function LibraryPage() {
                     </span>
                     <small>
                       {
-                        selectedSubjectPapers.filter(
-                          (paper) =>
-                            paper.year === yearValue &&
-                            paper.session === item,
-                        ).length
+                        folders.filter(
+                          (folder) =>
+                            folder.year === yearValue &&
+                            folder.session === item &&
+                            (subject === ALL || folder.subject === subject),
+                        ).reduce((total, folder) => total + folder.paperCount, 0)
                       }
                     </small>
                   </button>
@@ -457,6 +534,7 @@ export default function LibraryPage() {
                           {sessionGroup.papers.map((paper) => (
                             <Link
                               to={`/solve/library/${paper.id}`}
+                              state={{ paper }}
                               className="library-card"
                               key={paper.id}
                             >
@@ -492,13 +570,19 @@ export default function LibraryPage() {
                 ))}
               </details>
             ))}
+            {!loading && !loadError && hasActiveFilters && !hasSelectedSession && (
+              <div className="library-empty">
+                <b>Choose a year and session.</b>
+                <span>The paper cards load only for the folder you open.</span>
+              </div>
+            )}
             {loadError && !loading && (
               <div className="library-empty">
                 <b>MCQ library unavailable.</b>
                 <span>{loadError}</span>
               </div>
             )}
-            {!loadError && !visiblePapers.length && !loading && (
+            {!loadError && hasSelectedSession && !visiblePapers.length && !loading && (
               <div className="library-empty">
                 <b>No papers match those filters.</b>
                 <button
