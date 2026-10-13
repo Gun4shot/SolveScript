@@ -17,7 +17,11 @@ test('builds homepage sitemap and crawlable robots for the actual deployment ori
   try {
     await fs.writeFile(path.join(directory, 'index.html'), '<html><head></head></html>');
     await generateSeo(directory, 'https://example.com');
-    assert.match(await fs.readFile(path.join(directory, 'index.html'), 'utf8'), /rel="canonical" href="https:\/\/example.com\/"/);
+    const html = await fs.readFile(path.join(directory, 'index.html'), 'utf8');
+    assert.match(html, /rel="canonical" href="https:\/\/example.com\/"/);
+    assert.match(html, /"name":"SolveScript"/);
+    assert.match(html, /"alternateName":\["Solve Script","example.com"\]/);
+    assert.match(html, /"sameAs":\["https:\/\/github.com\/Gun4shot\/SolveScript"\]/);
     assert.match(await fs.readFile(path.join(directory, 'sitemap.xml'), 'utf8'), /<loc>https:\/\/example.com\/<\/loc>/);
     assert.match(await fs.readFile(path.join(directory, 'robots.txt'), 'utf8'), /Disallow: \/api\//);
   } finally {

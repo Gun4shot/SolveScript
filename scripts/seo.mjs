@@ -17,9 +17,20 @@ export async function generateSeo(directory, value) {
   let html = await fs.readFile(indexPath, 'utf8');
   if (origin) {
     const data = JSON.stringify({
-      '@context': 'https://schema.org', '@type': 'WebSite',
-      name: 'SolveScript', alternateName: 'Solve Script', url: `${origin}/`,
-      description: 'Free Cambridge A-Level past-paper practice with annotations, timed exams and optional AI review.',
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      '@id': `${origin}/#website`,
+      name: 'SolveScript',
+      alternateName: ['Solve Script', new URL(origin).hostname],
+      url: `${origin}/`,
+      description: 'SolveScript is a free, open-source Cambridge A-Level past-paper practice studio with organised papers, page annotations, timed exams, progress tracking and optional AI review.',
+      inLanguage: 'en',
+      isAccessibleForFree: true,
+      sameAs: ['https://github.com/Gun4shot/SolveScript'],
+      creator: {
+        '@type': 'Person',
+        name: 'Sidant Chaturbedi',
+      },
     }).replaceAll('<', '\\u003c');
     const tags = `
     <link rel="canonical" href="${origin}/" />
