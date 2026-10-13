@@ -27,7 +27,8 @@ on-demand PDF download and 40 crops at 150 DPI in the Linux container.
 Temporary production test accounts and files were removed after testing.
 Search Console ownership is verified and the homepage is indexed on Google.
 UptimeRobot checks the backend every five minutes and reports Up.
-Google OAuth still needs the callback setup described below.
+The Google OAuth callback is registered and the live login reaches Google's
+account chooser. Final account consent/sign-in was not completed by the agent.
 
 The existing database has MCQ and written-paper metadata. Its local Windows PDF
 paths are not copied into the container. MCQ files are retrieved on demand from
@@ -51,10 +52,11 @@ the archive under `caie`. Metadata/folder browsing does not download PDFs.
    `sitemap.xml`. For a later custom domain, set `SITE_URL` to its HTTPS origin and
    rebuild. The free `onrender.com` subdomain is enough to publish and be indexed;
    a separately owned `.com` domain is not included.
-6. Backend Google credentials and `GOOGLE_CALLBACK_URL` are set. Google sign-in
-   currently reports `redirect_uri_mismatch`: add
+6. Backend Google credentials and `GOOGLE_CALLBACK_URL` are set. The user added
    `https://solvescript.onrender.com/api/auth/google/callback` to the existing
-   Google OAuth web client's authorized redirect URIs. Password login works.
+   Google OAuth web client's authorized redirect URIs on 13 October 2026.
+   Verified that live login now reaches Google's account chooser instead of
+   `redirect_uri_mismatch`; full user consent/sign-in remains a user smoke test.
    Keep the callback on the frontend's same-origin proxy.
 7. Verify the homepage with the backend stopped/asleep, then registration/login,
    folder browsing, starting one MCQ paper, one crop job, a written paper, and
