@@ -151,6 +151,9 @@ Public library endpoints do not require a user. User uploads, attempts, drafts, 
 - The free deployment config caps each uploaded PDF at 10 MB; match `MAX_UPLOAD_MB` and frontend `VITE_MAX_UPLOAD_MB`. Atlas's total free storage budget includes these files and annotations. Crop generation is deduplicated and serialized, with deployment DPI 150.
 - `/api/live` checks the process; `/api/health` checks database readiness. Set `TRUST_PROXY_HOPS` only for the actual reverse-proxy topology. Render generates distinct JWT secrets; Google OAuth needs the final frontend proxy callback URL in both Render and Google configuration.
 - Storage verification: `node server/scripts/checkDeploymentStorage.cjs` tests recovery of one disposable GridFS PDF after its disk copies are removed, then cleans up that fixture.
+- Search Console (13 October 2026): verified URL-prefix property for the live frontend, sitemap status Success with one discovered page, and homepage URL Inspection confirms "URL is on Google / Page is indexed". Public verification meta tag remains in `index.html`.
+- Production registration, secure cookie login, owner-only private GridFS upload/download/deletion, MCQ download, and a 40-question crop job passed. Test accounts and uploads were cleaned up. Frontend deployment is `ab9b029`; backend deployment is `4d8b4bf`; automatic deploys remain off.
+- UptimeRobot monitor `804253716` was created by the user for `https://solvescript-api.onrender.com/api/health`; dashboard confirmed Up and a 5-minute interval on 13 October 2026. No alert contacts are attached. Google OAuth still needs the frontend callback registered in Google Cloud; the client editor failed to load in the in-app browser, so the exact callback was handed to the user. See `DEPLOYMENT.md` for final status.
 
 ## Run Locally
 
