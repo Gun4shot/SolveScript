@@ -2,6 +2,10 @@
 
 SolveScript is a study studio for Cambridge International AS & A Level paper practice. It supports Paper 1 multiple-choice sessions and full written-paper sessions with PDF annotation, timers, reports, and progress tracking.
 
+**Live website:** [solvescript.onrender.com](https://solvescript.onrender.com/)
+
+SolveScript is free and open source. Students can organise past papers, annotate each page independently, take timed exams, save their work, and optionally bring their own Gemini API key for AI-assisted written-answer review.
+
 ## What students can do
 
 - Browse the public Paper 1 library, filter by subject, year, session, and difficulty, and practise as a guest.
